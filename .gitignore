@@ -1,3 +1,39 @@
+*.cache
+
+# shortcuts
+*.lnk
+*.url
+
+# Windows/Thumbnails
+._*
+Thumbs.db
+ehthumbs.db
+.Bridge*
+desktop.ini
+$RECYCLE.BIN/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+.AppleDB
+.AppleDesktop
+**/Network Trash Folder/
+**/Temporary Items/
+.apdisk
+.directory
+
+# Linux file backups
+*~
+
+### PYTHON ###
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
@@ -98,7 +134,7 @@ ipython_config.py
 #   Similar to Pipfile.lock, it is generally recommended to include uv.lock in version control.
 #   This is especially recommended for binary packages to ensure reproducibility, and is more
 #   commonly ignored for libraries.
-#uv.lock
+uv.lock
 
 # poetry
 #   Similar to Pipfile.lock, it is generally recommended to include poetry.lock in version control.
@@ -181,12 +217,11 @@ cython_debug/
 # Learn more at https://abstra.io/docs
 .abstra/
 
-# Visual Studio Code
-#  Visual Studio Code specific template is maintained in a separate VisualStudioCode.gitignore 
-#  that can be found at https://github.com/github/gitignore/blob/main/Global/VisualStudioCode.gitignore
-#  and can be added to the global gitignore or merged into this file. However, if you prefer, 
-#  you could uncomment the following to ignore the entire vscode folder
-# .vscode/
+# IDE
+*.sublime-*
+.vscode
+.vscodeignore
+*.code-workspace
 
 # Ruff stuff:
 .ruff_cache/
