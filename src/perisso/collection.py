@@ -1,3 +1,4 @@
+from archicad import Types as act
 from .enums import ElType, Filter
 from .utils import getPropValues, getDetails, rtc, acu, _pprint  # noqa: F401
 
@@ -50,6 +51,8 @@ class ElementCollection:
 			raise ValueError("`filterBy()` must be set to `Filter.PROPERTY'")
 
 		self._propGUID = str(acu.GetUserDefinedPropertyId(group, name).guid)
+
+		# Only include elements that have a "propertyValue" key (not "error")
 		_param = {
 			"elements": self.elements,
 			"properties": [{"propertyId": {"guid": self._propGUID}}],
@@ -57,23 +60,26 @@ class ElementCollection:
 		_prop_values_or_error = rtc("GetPropertyValuesOfElements", _param)["propertyValuesForElements"]  # fmt: skip
 		filtered = []
 		for i, prop_result in enumerate(_prop_values_or_error):
-			if "propertyValues" in prop_result:
-				prop_value = prop_result["propertyValues"][0]
-				# Only include elements that have a "propertyValue" key (not "error")
-				if "propertyValue" in prop_value:
-					filtered.append(self.elements[i])
+			prop_value = prop_result["propertyValues"][0]
+			if "propertyValue" in prop_value:
+				filtered.append(self.elements[i])
 
 		return ElementCollection(
 			filtered, _field=Filter.PROPERTY, _propGUID=self._propGUID
 		)
 
-	def startsWith(self, value: str | ElType):
+	# region // string comparisons
+	def startsWith(self, value: str | ElType, casesensitive: bool = True):
 		if not self._field:
 			raise ValueError("Must call filterBy() first")
 
 		if isinstance(value, ElType):
 			# get 'value' from enum
 			value = value.value
+
+		if not casesensitive:
+			value = value.casefold()
+
 		handler = self._pattern_handlers.get(self._field)
 		if handler:
 			ret_values = handler(self.elements)
@@ -81,18 +87,26 @@ class ElementCollection:
 				self.elements[i]
 				for i, item in enumerate(ret_values)
 				if item["ok"]  # exclude errors
-				and str(item["value"]).startswith(value)
+				and (
+					str(item["value"]).casefold()
+					if not casesensitive
+					else str(item["value"])
+				).startswith(value)
 			]
 
 		return ElementCollection(filtered)
 
-	def endsWith(self, value: str | ElType):
+	def endsWith(self, value: str | ElType, casesensitive: bool = True):
 		if not self._field:
 			raise ValueError("Must call filterBy() first")
 
 		if isinstance(value, ElType):
 			# get 'value' from enum
 			value = value.value
+
+		if not casesensitive:
+			value = value.casefold()
+
 		handler = self._pattern_handlers.get(self._field)
 		if handler:
 			ret_values = handler(self.elements)
@@ -100,18 +114,26 @@ class ElementCollection:
 				self.elements[i]
 				for i, item in enumerate(ret_values)
 				if item["ok"]  # exclude errors
-				and str(item["value"]).endswith(value)
+				and (
+					str(item["value"]).casefold()
+					if not casesensitive
+					else str(item["value"])
+				).endswith(value)
 			]
 
 		return ElementCollection(filtered)
 
-	def contains(self, value: str | ElType):
+	def contains(self, value: str | ElType, casesensitive: bool = True):
 		if not self._field:
 			raise ValueError("Must call filterBy() first")
 
 		if isinstance(value, ElType):
 			# get 'value' from enum
 			value = value.value
+
+		if not casesensitive:
+			value = value.casefold()
+
 		handler = self._pattern_handlers.get(self._field)
 		if handler:
 			ret_values = handler(self.elements)
@@ -119,18 +141,27 @@ class ElementCollection:
 				self.elements[i]
 				for i, item in enumerate(ret_values)
 				if item["ok"]  # exclude errors
-				and value in str(item["value"])
+				and value
+				in (
+					str(item["value"]).casefold()
+					if not casesensitive
+					else str(item["value"])
+				)
 			]
 
 		return ElementCollection(filtered)
 
-	def equals(self, value: str | ElType):
+	def equals(self, value: str | ElType, casesensitive: bool = True):
 		if not self._field:
 			raise ValueError("Must call filterBy() first")
 
 		if isinstance(value, ElType):
 			# get 'value' from enum
 			value = value.value
+
+		if not casesensitive:
+			value = value.casefold()
+
 		handler = self._pattern_handlers.get(self._field)
 		if handler:
 			ret_values = handler(self.elements)
@@ -138,10 +169,17 @@ class ElementCollection:
 				self.elements[i]
 				for i, item in enumerate(ret_values)
 				if item["ok"]  # exclude errors
-				and value == str(item["value"])
+				and value
+				== (
+					str(item["value"]).casefold()
+					if not casesensitive
+					else str(item["value"])
+				)
 			]
 
 		return ElementCollection(filtered)
+
+	# endregion //
 
 	def get(self):
 		"""Return the filtered elements."""
@@ -154,6 +192,13 @@ class ElementCollection:
 	def first(self):
 		"""Return the first element or None if empty."""
 		return self.elements[0] if self.elements else None
+
+	def toNative(self):
+		"""Return a native (original Archicad-Python connection) element list with their appropiate types."""
+		return [
+			act.ElementIdArrayItem(act.ElementId(item["elementId"]["guid"]))
+			for item in self.elements
+		]
 
 	# region // actions
 	def highlight(
