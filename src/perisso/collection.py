@@ -1,5 +1,5 @@
 from .enums import ElType, Filter
-from .utils import getPropValues, getDetails, rtc, acu, _pprint
+from .utils import getPropValues, getDetails, rtc, acu, _pprint  # noqa: F401
 
 
 class ElementCollection:
@@ -188,6 +188,17 @@ class ElementCollection:
 	# region // __dunder__ methods
 	def __len__(self):
 		return len(self.elements)
+
+	def __getitem__(self, key):
+		"""Support slicing and indexing operations."""
+		if isinstance(key, slice):
+			# return a new ElementCollection with sliced elements
+			return ElementCollection(self.elements[key])
+		elif isinstance(key, int):
+			# return the individual element at the given index
+			return self.elements[key]
+		else:
+			raise TypeError("Index must be an integer or slice")
 
 	def __str__(self):
 		return f"Collection of {self.count()} element" + (
