@@ -31,15 +31,43 @@ def _pprint(d):
 	return
 
 
+def _toNative(elements: list):
+	"""Return a native (original Archicad-Python connection) element list with their appropiate types."""
+	return [
+		act.ElementIdArrayItem(act.ElementId(item["elementId"]["guid"]))
+		for item in elements
+	]
+
+
 def getPropValues(*, builtin: str = None, propGUID: str = None, elements: dict) -> list:
-	"""Get Properties"""
-	if builtin and propGUID is None:
+	"""Get Properties with the orginal Archicad-Python connection."""
+	if builtin and (propGUID is None):
+		# ... except for built-ins
+		return _getPropValues(builtin=builtin, elements=elements)
+
+	pidai = act.PropertyIdArrayItem(act.PropertyId(propGUID))
+	json_ = acc.GetPropertyValuesOfElements(_toNative(elements), [pidai])
+
+	ret_values = []
+	# normalize:
+	for item in json_:  # item is "PropertyValuesWrapper"
+		# so far I've not come across errors
+		ret_values.append(
+			{"ok": True, "value": item.propertyValues[0].propertyValue.value}
+		)
+	return ret_values
+
+
+def _getPropValues(*, builtin: str = None, propGUID: str = None, elements: dict ) -> list:  # fmt: skip
+	"""Get Properties with Tapir. This is now only used for builtin properties. \n
+	It has the severe backdraw that there are no type hints and all values are stringified.
+	See also: https://github.com/ENZYME-APD/tapir-archicad-automation/issues/285"""
+	if builtin and (propGUID is None):
 		propGUID = str(acu.GetBuiltInPropertyId(builtin).guid)
 	_param = {
 		"elements": elements,
 		"properties": [{"propertyId": {"guid": propGUID}}],
 	}
-	_pprint(_param)
 	json_ = rtc("GetPropertyValuesOfElements", _param)["propertyValuesForElements"]
 	ret_values = []
 	# normalize:
@@ -62,11 +90,3 @@ def getDetails(type_: Filter, elements: dict) -> list:
 		# ElementType can never be error
 		ret_values = [{"ok": True, "value": i["type"]} for i in json_]
 	return ret_values
-
-
-# result = read_field(json_data)
-
-# if result["ok"]:
-# 	print(result["value"])
-# else:
-# 	print("Error:", result["error"])
