@@ -27,6 +27,15 @@ col_elements = (
 )
 print(col_elements)
 
+# perisso supports slicing, too
+print(col_elements[0])
+
+# intuitively add sets to each other
+beams = elements.filterBy(Filter.ELEMENT_TYPE).equals(ElType.BEAM)
+columns = elements.filterBy(Filter.ELEMENT_TYPE).equals(ElType.COLUMN)
+structural = beams + columns
+print(structural)
+
 # additional functionalities:
 perisso().filterBy(Filter.PROPERTY).property("Prop Group Name", "Prop Name").equals("test").highlight()
 sleep(5)
