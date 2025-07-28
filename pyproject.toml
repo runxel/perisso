@@ -1,0 +1,23 @@
+[project]
+name = "perisso"
+dynamic = ["version"]
+requires-python = ">=3.10"
+authors = [{ name = "Lucas Becker", email = "lucas@akroter.io" }]
+description = "Experimental Tapir utility for supercharging Archicad automation."
+keywords = ["archicad", "bim", "automation", "tapir"]
+readme = "README.md"
+license = "MIT"
+classifiers = [
+	"Programming Language :: Python :: 3",
+	"License :: OSI Approved :: MIT License",
+	"Operating System :: OS Independent",
+]
+dependencies = ["archicad"]
+[project.urls]
+"Homepage" = "https://github.com/runxel/perisso"
+"Bug Tracker" = "https://github.com/runxel/perisso/issues"
+[build-system]
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
+[tool.hatch.version]
+source = "vcs"
