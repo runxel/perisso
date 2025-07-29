@@ -1,7 +1,7 @@
 import json
 from archicad import ACConnection
 from archicad.releases import Commands, Types, Utilities
-from .enums import Filter
+from .enums import Filter, ElType
 
 # Connection setup
 conn = ACConnection.connect()
@@ -15,7 +15,12 @@ act: Types = conn.types
 
 def rtc(command: str, *args):
 	"""Run a Tapir Command \n
-	Uses the official `archicad` package.
+	Uses the official `archicad` package for that.
+
+	Args:
+		command (`str`): The name of the tapir command to be run.
+		*args (`dict`): Usually a dict with the additional parameters.
+			Could look like this: `{"elements": perisso().get()}`
 	"""
 	if args:
 		return acc.ExecuteAddOnCommand(
@@ -83,10 +88,40 @@ def _getPropValues(*, builtin: str = None, propGUID: str = None, elements: dict 
 	return ret_values
 
 
-def getDetails(type_: Filter, elements: dict) -> list:
+def getDetails(filter: Filter, elements: dict) -> list:
 	json_ = rtc("GetDetailsOfElements", {"elements": elements})["detailsOfElements"]
 	ret_values = []
-	if type_ == Filter.ELEMENT_TYPE:
+	if filter == Filter.ELEMENT_TYPE:
 		# ElementType can never be error
 		ret_values = [{"ok": True, "value": i["type"]} for i in json_]
+	else:
+		raise NotImplementedError
+	return ret_values
+
+
+def getGeometry(filter: Filter, elements: dict) -> list:
+	ret_values = []
+	elem_types = getDetails(filter=Filter.ELEMENT_TYPE, elements=elements)
+	if filter == Filter.HEIGHT:
+		for i, item in enumerate(elements):
+			if elem_types[i]["value"] == ElType.MORPH.value:
+				ret_values.append({"ok": True, "value": _getBBoxSize([item])[0]["z"]})
+			else:
+				ret_values.append({"ok": False, "error": "not implemented"})
+	else:
+		raise NotImplementedError
+	return ret_values
+
+
+def _getBBoxSize(elements: dict) -> list:
+	"""Gets the size of the fitted Bounding Box of the elements."""
+	ret_values = []
+	bboxes_raw = rtc("Get3DBoundingBoxes", {"elements": elements})
+	for i, item in enumerate(bboxes_raw["boundingBoxes3D"]):
+		dimensions = {
+			"x": item["boundingBox3D"]["xMax"] - item["boundingBox3D"]["xMin"],
+			"y": item["boundingBox3D"]["yMax"] - item["boundingBox3D"]["yMin"],
+			"z": item["boundingBox3D"]["zMax"] - item["boundingBox3D"]["zMin"],
+		}
+		ret_values.append(dimensions)
 	return ret_values

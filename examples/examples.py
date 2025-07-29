@@ -27,6 +27,13 @@ col_elements = (
 )
 print(col_elements)
 
+wanted = (
+	elements.filterBy(Filter.PROPERTY)
+	.property("Prop Group Name", "Prop Name")
+	.between(1.0, 2.5)
+)
+print(wanted)
+
 # perisso supports slicing, too
 print(col_elements[0])
 
@@ -37,6 +44,8 @@ structural = beams + columns
 print(structural)
 
 # additional functionalities:
-perisso().filterBy(Filter.PROPERTY).property("Prop Group Name", "Prop Name").equals("test").highlight()
+perisso().filterBy(Filter.PROPERTY).property("Prop Group Name", "Prop Name").equals(
+	"test"
+).highlight()
 sleep(5)
 clearhighlight()

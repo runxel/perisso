@@ -1,6 +1,6 @@
 from archicad import Types as act
 from .enums import ElType, Filter
-from .utils import getPropValues, getDetails, rtc, acu, _pprint  # noqa: F401
+from .utils import getPropValues, getDetails, getGeometry, rtc, acu, _pprint  # noqa: F401
 
 
 class ElementCollection:
@@ -35,6 +35,8 @@ class ElementCollection:
 			Filter.PROPERTY: lambda elements: getPropValues(
 				propGUID=self._propGUID, elements=elements
 			),
+			# geometry
+			Filter.HEIGHT: lambda elements: getGeometry(Filter.HEIGHT, elements),
 		}
 
 	def filterBy(self, field: Filter):
@@ -46,7 +48,13 @@ class ElementCollection:
 		return self
 
 	def property(self, group: str, name: str):
-		"""When filtering to a property all elements that do not have the property available are discarded."""
+		"""Must follow on a `.filterBy(Filter.PROPERTY)` to specify which Property should be read.
+		Please note: When filtering to a property all elements that do not have the property available are discarded.
+
+		Args:
+			group (`str`): Property group name.
+			name (`str`): Property name.
+		"""
 		if not self._field == Filter.PROPERTY:
 			raise ValueError("`filterBy()` must be set to `Filter.PROPERTY'")
 
@@ -67,6 +75,41 @@ class ElementCollection:
 		return ElementCollection(
 			filtered, _field=Filter.PROPERTY, _propGUID=self._propGUID
 		)
+
+	def and_(self, other_collection_or_callable):
+		"""Combine with another ElementCollection using AND logic (intersection).
+
+		Args:
+			other_collection_or_callable: Either an ElementCollection or a callable
+				that takes this collection and returns an ElementCollection
+
+		Returns:
+			ElementCollection: New collection containing only elements present in both collections
+		"""
+		if callable(other_collection_or_callable):
+			other_collection = other_collection_or_callable(
+				ElementCollection(self.elements)
+			)
+		elif isinstance(other_collection_or_callable, ElementCollection):
+			other_collection = other_collection_or_callable
+		else:
+			raise TypeError(
+				"Argument must be an ElementCollection or callable returning one"
+			)
+
+		# Get GUIDs from the other collection
+		other_guids = {
+			element["elementId"]["guid"] for element in other_collection.elements
+		}
+
+		# Keep only elements that exist in both collections
+		intersection_elements = [
+			element
+			for element in self.elements
+			if element["elementId"]["guid"] in other_guids
+		]
+
+		return ElementCollection(intersection_elements)
 
 	# region // string comparisons
 	def startsWith(self, value: str | ElType, casesensitive: bool = True):
@@ -151,7 +194,15 @@ class ElementCollection:
 
 		return ElementCollection(filtered)
 
-	def equals(self, value: str | ElType, casesensitive: bool = True):
+	def equals(self, value: str | int | float | ElType, casesensitive: bool = True):
+		"""Keep only the elements whose value match the input.
+		Args:
+			value (`str` | `int`| `float`| `ElType`): Value to check against.
+			casesensitive (`bool`): Determines if the check should be perforemed case-sensitive.
+
+		Returns:
+			`ElementCollection`: Returns a new ElementCollection.
+		"""
 		if not self._field:
 			raise ValueError("Must call filterBy() first")
 
@@ -159,23 +210,134 @@ class ElementCollection:
 			# get 'value' from enum
 			value = value.value
 
-		if not casesensitive:
-			value = value.casefold()
+		handler = self._pattern_handlers.get(self._field)
+		if handler:
+			ret_values = handler(self.elements)
+			filtered = []
+			for i, item in enumerate(ret_values):
+				if item["ok"]:  # exclude errors
+					if isinstance(value, (int, float)):
+						try:
+							item_value = float(item["value"])
+							if item_value == value:
+								filtered.append(self.elements[i])
+						except (ValueError, TypeError):
+							# Skip non-numeric values
+							continue
+					else:
+						# String comparison
+						if not casesensitive:
+							value = value.casefold()
+
+						item_str = (
+							str(item["value"]).casefold()
+							if not casesensitive
+							else str(item["value"])
+						)
+						if value == item_str:
+							filtered.append(self.elements[i])
+
+		return ElementCollection(filtered)
+
+	# endregion //
+
+	# region // numeric comparisons
+	def lessThan(self, value: int | float, inclusive: bool = False):
+		"""Keep only elements whose numeric value is less than the input.
+		Args:
+			value (`int` | `float`): Numeric value to compare against.
+			inclusive (`bool`): If True, uses <= instead of <.
+
+		Returns:
+			`ElementCollection`: Returns a new ElementCollection.
+		"""
+		if not self._field:
+			raise ValueError("Must call filterBy() first")
 
 		handler = self._pattern_handlers.get(self._field)
 		if handler:
 			ret_values = handler(self.elements)
-			filtered = [
-				self.elements[i]
-				for i, item in enumerate(ret_values)
-				if item["ok"]  # exclude errors
-				and value
-				== (
-					str(item["value"]).casefold()
-					if not casesensitive
-					else str(item["value"])
-				)
-			]
+			filtered = []
+			for i, item in enumerate(ret_values):
+				if item["ok"]:  # exclude errors
+					try:
+						item_value = float(item["value"])
+						if inclusive:
+							if item_value <= value:
+								filtered.append(self.elements[i])
+						else:
+							if item_value < value:
+								filtered.append(self.elements[i])
+					except (ValueError, TypeError):
+						# Skip non-numeric values
+						continue
+
+		return ElementCollection(filtered)
+
+	def greaterThan(self, value: int | float, inclusive: bool = False):
+		"""Keep only elements whose numeric value is greater than the input.
+		Args:
+			value (`int` | `float`): Numeric value to compare against.
+			inclusive (`bool`): If True, uses >= instead of >.
+
+		Returns:
+			`ElementCollection`: Returns a new ElementCollection.
+		"""
+		if not self._field:
+			raise ValueError("Must call filterBy() first")
+
+		handler = self._pattern_handlers.get(self._field)
+		if handler:
+			ret_values = handler(self.elements)
+			filtered = []
+			for i, item in enumerate(ret_values):
+				if item["ok"]:  # exclude errors
+					try:
+						item_value = float(item["value"])
+						if inclusive:
+							if item_value >= value:
+								filtered.append(self.elements[i])
+						else:
+							if item_value > value:
+								filtered.append(self.elements[i])
+					except (ValueError, TypeError):
+						# Skip non-numeric values
+						continue
+
+		return ElementCollection(filtered)
+
+	def between(
+		self, min_value: int | float, max_value: int | float, inclusive: bool = True
+	):
+		"""Keep only elements whose numeric value is between min and max values.
+		Args:
+			min_value (`int` | `float`): Minimum value (lower bound).
+			max_value (`int` | `float`): Maximum value (upper bound).
+			inclusive (`bool`): If True, includes boundary values.
+
+		Returns:
+			`ElementCollection`: Returns a new ElementCollection.
+		"""
+		if not self._field:
+			raise ValueError("Must call filterBy() first")
+
+		handler = self._pattern_handlers.get(self._field)
+		if handler:
+			ret_values = handler(self.elements)
+			filtered = []
+			for i, item in enumerate(ret_values):
+				if item["ok"]:  # exclude errors
+					try:
+						item_value = float(item["value"])
+						if inclusive:
+							if min_value <= item_value <= max_value:
+								filtered.append(self.elements[i])
+						else:
+							if min_value < item_value < max_value:
+								filtered.append(self.elements[i])
+					except (ValueError, TypeError):
+						# Skip non-numeric values
+						continue
 
 		return ElementCollection(filtered)
 
@@ -208,6 +370,23 @@ class ElementCollection:
 		noncolor: list[int] = [164, 166, 165, 128],
 		wireframe=True,
 	):
+		"""Highlight elements in the collection with specified colors.
+		Args:
+			color (`list[int]`, optional): RGBA color values for highlighted elements.
+				Must be a list of exactly 4 integers.
+			noncolor (`list[int]`, optional): RGBA color values for non-highlighted elements.
+				Must be a list of exactly 4 integers.
+			wireframe (`bool`, optional): Whether to display elements in wireframe mode in 3D.
+				Defaults to True.
+		Returns:
+			self: Returns the collection instance for method chaining.
+		Raises:
+			ValueError: If color or noncolor parameters are not lists of exactly 4 integers,
+				or if any color values are not integers.
+		Example:
+			>>> collection.highlight(color=[255, 0, 0, 255], wireframe=False)
+			>>> collection.highlight(noncolor=[128, 128, 128, 100])
+		"""
 		# Validate color parameter
 		if not isinstance(color, list) or len(color) != 4:
 			raise ValueError("Color must be a list of exactly 4 integers")

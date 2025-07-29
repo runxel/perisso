@@ -95,4 +95,4 @@ class Filter(Enum):
 
 	# geometry
 	# LENGTH = "length"
-	# HEIGHT = "heigth"
+	HEIGHT = "height"
