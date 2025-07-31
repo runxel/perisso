@@ -1,21 +1,14 @@
 import json
-from archicad import ACConnection
-from archicad.releases import Commands, Types, Utilities
+from .connection import acc, acu, act
 from .enums import Filter, ElType
-
-# Connection setup
-conn = ACConnection.connect()
-if not conn:
-	raise Exception("No Archicad instance running!")
-
-acc: Commands = conn.commands
-acu: Utilities = conn.utilities
-act: Types = conn.types
+from .tapir_commands import tapir
 
 
-def rtc(command: str, *args):
-	"""Run a Tapir Command \n
-	Uses the official `archicad` package for that.
+def run_tapir_command(command: str, *args):
+	"""Invoke a Tapir Command \n
+	Uses the official `archicad` package to run it.
+
+	Deprecated: Use the typed `tapir` object instead for better IDE support.
 
 	Args:
 		command (`str`): The name of the tapir command to be run.
