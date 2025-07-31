@@ -1,5 +1,7 @@
 *.cache
 
+/devtest
+
 # shortcuts
 *.lnk
 *.url
