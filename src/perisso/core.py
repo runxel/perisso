@@ -1,7 +1,7 @@
 from archicad import ACConnection
 from archicad.releases import Commands, Types, Utilities
 from .collection import ElementCollection
-from .utils import rtc
+from .utils import run_tapir_command
 
 # Connection setup
 conn = ACConnection.connect()
@@ -22,18 +22,9 @@ def perisso(*, selection=False):
 		selection: If `True`, only the currently selected elements will be added to the ElementCollection.
 	"""
 	if selection:
-		elements_data = rtc("GetSelectedElements")
+		elements_data = run_tapir_command("GetSelectedElements")
 		if len(elements_data["elements"]) == 0:
-			elements_data = rtc("GetAllElements")
+			elements_data = run_tapir_command("GetAllElements")
 	else:
-		elements_data = rtc("GetAllElements")
+		elements_data = run_tapir_command("GetAllElements")
 	return ElementCollection(elements_data["elements"])
-
-
-def clearhighlight():
-	"""Clear all highlighting in Archicad."""
-	_param = {
-		"elements": [None],
-		"highlightedColors": [[1, 1, 1, 1]],
-	}
-	rtc("HighlightElements", _param)
