@@ -123,6 +123,22 @@ class TapirCommands:
 		name_ = inspect.currentframe().f_code.co_name
 		return self._run(name_)
 
+	def setProjectInfoField(
+		self, projectInfoId: str | ProjectInfo, projectInfoValue: str
+	) -> dict:
+		"""Sets the value of a project info field.
+
+		Args:
+			projectInfoId (`str | ProjectInfo`): The ID of the project info field, either as a string
+				or a `ProjectInfo`-class member (enum).
+			projectInfoValue (`str`): The new value of the project info field.
+		"""
+		name_ = inspect.currentframe().f_code.co_name
+		if isinstance(projectInfoId, ProjectInfo):
+			projectInfoId = projectInfoId.value
+		params = {"projectInfoId": projectInfoId, "projectInfoValue": projectInfoValue}
+		return self._run(name_, params)
+
 	def getStories(self) -> dict:
 		"""Retrieves information about the story sructure of the currently loaded project."""
 		name_ = inspect.currentframe().f_code.co_name
