@@ -3,7 +3,7 @@ from typing import Dict, List, Any
 from pathlib import Path
 import os
 from .connection import acc, act
-from .enums import ElType, AttrType
+from .enums import ElType, AttrType, ProjectInfo
 from .vector import Vector, Coordinate
 
 
