@@ -79,6 +79,23 @@ class ElType(Enum):
 	UNKNOWN = "Unknown"
 
 
+class AttrType(Enum):
+	"""Enumeration of the attribute types in Archicad."""
+
+	LAYER = "Layer"
+	LINE = "Line"
+	FILL = "Fill"
+	COMPOSITE = "Composite"
+	SURFACE = "Surface"
+	LAYERCOMBINATION = "LayerCombination"
+	ZONECATEGORY = "ZoneCategory"
+	PROFILE = "Profile"
+	PENTABLE = "PenTable"
+	MEPSYSTEM = "MEPSystem"
+	OPERATIONPROFILE = "OperationProfile"
+	BUILDINGMATERIAL = "BuildingMaterial"
+
+
 class Filter(Enum):
 	"""Enumeration of supported filter fields."""
 
