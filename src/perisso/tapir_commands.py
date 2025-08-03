@@ -182,6 +182,14 @@ class TapirCommands:
 		params = {"elements": elements}
 		return self._run(name_, params)
 
+	def getSubelementsOfHierarchicalElements(
+		self, elements: List[Dict[str, str]]
+	) -> dict:
+		"""Gets the subelements of the given hierarchical elements."""
+		name_ = inspect.currentframe().f_code.co_name
+		params = {"elements": elements}
+		return self._run(name_, params)
+
 	def getConnectedElements(
 		self, elements: List[Dict[str, str]], connectedElementType: ElType
 	) -> dict:
