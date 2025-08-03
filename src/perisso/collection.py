@@ -1,6 +1,7 @@
 from archicad import Types as act
+from .tapir_commands import tapir
 from .enums import ElType, Filter
-from .utils import getPropValues, getDetails, getGeometry, rtc, acu, _pprint  # noqa: F401
+from .utils import getPropValues, getDetails, getGeometry, acu, _pprint  # noqa: F401 fmt: skip
 
 
 class ElementCollection:
@@ -61,11 +62,7 @@ class ElementCollection:
 		self._propGUID = str(acu.GetUserDefinedPropertyId(group, name).guid)
 
 		# Only include elements that have a "propertyValue" key (not "error")
-		_param = {
-			"elements": self.elements,
-			"properties": [{"propertyId": {"guid": self._propGUID}}],
-		}
-		_prop_values_or_error = rtc("GetPropertyValuesOfElements", _param)["propertyValuesForElements"]  # fmt: skip
+		_prop_values_or_error = tapir.getPropertyValuesOfElements(self.elements, [self._propGUID])["propertyValuesForElements"]  # fmt: skip
 		filtered = []
 		for i, prop_result in enumerate(_prop_values_or_error):
 			prop_value = prop_result["propertyValues"][0]
@@ -342,7 +339,7 @@ class ElementCollection:
 		return ElementCollection(filtered)
 
 	# endregion //
-
+	# region 	//  Helper functions
 	def get(self):
 		"""Return the filtered elements."""
 		return self.elements
@@ -362,6 +359,7 @@ class ElementCollection:
 			for item in self.elements
 		]
 
+	# endregion
 	# region // actions
 	def highlight(
 		self,
@@ -398,13 +396,9 @@ class ElementCollection:
 		if not all(isinstance(c, int) for c in noncolor):
 			raise ValueError("All noncolor values must be integers")
 
-		_param = {
-			"elements": self.elements,
-			"highlightedColors": [color],
-			"wireframe3D": wireframe,
-			"nonHighlightedColor": noncolor,
-		}
-		rtc("HighlightElements", _param)
+		tapir.HighlightElements(
+			self.elements, color=[color], mutedcolor=noncolor, wireframe=wireframe
+		)
 		return self
 
 	# endregion
@@ -412,6 +406,10 @@ class ElementCollection:
 	# region // __dunder__ methods
 	def __len__(self):
 		return len(self.elements)
+
+	def __iter__(self):
+		"""Make ElementCollection iterable over its elements."""
+		return iter(self.elements)
 
 	def __getitem__(self, key):
 		"""Support slicing and indexing operations."""
@@ -428,6 +426,12 @@ class ElementCollection:
 		return f"Collection of {self.count()} element" + (
 			"s" if self.count() > 1 else ""
 		)
+
+	# There is currently no nice way to make an object JSON serializable without
+	# hacking or writing a JsonEncoder.
+	# Instead one should just use the ".get()" method; then no error will occur.
+	def __dict__(self):
+		return {"elements": self.elements}
 
 	def __contains__(self, item):
 		"""Check if an element or GUID is in this ElementCollection."""
