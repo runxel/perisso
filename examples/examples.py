@@ -1,5 +1,5 @@
 from time import sleep
-from perisso import perisso, clearhighlight, Filter, ElType
+from perisso import perisso, tapir, Filter, ElType
 
 # initialize an ElementCollection
 elements = perisso()
@@ -48,4 +48,4 @@ perisso().filterBy(Filter.PROPERTY).property("Prop Group Name", "Prop Name").equ
 	"test"
 ).highlight()
 sleep(5)
-clearhighlight()
+tapir.clearHighlight()
