@@ -1,12 +1,17 @@
 # This file initializes the perisso package.
 
-from .core import perisso, clearhighlight
-from .enums import Filter, ElType
+from .core import perisso
+from .tapir_commands import tapir
+from .enums import Filter, ElType, AttrType
+from .vector import Vector, Coordinate
 
 
 __all__ = [
 	"perisso",
-	"clearhighlight",
 	"Filter",
 	"ElType",
+	"AttrType",
+	"tapir",
+	"Vector",
+	"Coordinate",
 ]
