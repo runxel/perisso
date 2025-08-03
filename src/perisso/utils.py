@@ -62,11 +62,9 @@ def _getPropValues(*, builtin: str = None, propGUID: str = None, elements: dict 
 	See also: https://github.com/ENZYME-APD/tapir-archicad-automation/issues/285"""
 	if builtin and (propGUID is None):
 		propGUID = str(acu.GetBuiltInPropertyId(builtin).guid)
-	_param = {
-		"elements": elements,
-		"properties": [{"propertyId": {"guid": propGUID}}],
-	}
-	json_ = rtc("GetPropertyValuesOfElements", _param)["propertyValuesForElements"]
+	json_ = tapir.getPropertyValuesOfElements(elements, [propGUID])[
+		"propertyValuesForElements"
+	]
 	ret_values = []
 	# normalize:
 	for i in json_:
@@ -82,7 +80,7 @@ def _getPropValues(*, builtin: str = None, propGUID: str = None, elements: dict 
 
 
 def getDetails(filter: Filter, elements: dict) -> list:
-	json_ = rtc("GetDetailsOfElements", {"elements": elements})["detailsOfElements"]
+	json_ = tapir.getDetailsOfElements(elements)["detailsOfElements"]
 	ret_values = []
 	if filter == Filter.ELEMENT_TYPE:
 		# ElementType can never be error
@@ -98,7 +96,7 @@ def getGeometry(filter: Filter, elements: dict) -> list:
 	if filter == Filter.HEIGHT:
 		for i, item in enumerate(elements):
 			if elem_types[i]["value"] == ElType.MORPH.value:
-				ret_values.append({"ok": True, "value": _getBBoxSize([item])[0]["z"]})
+				ret_values.append({"ok": True, "value": getBBoxSize([item])[0]["z"]})
 			else:
 				ret_values.append({"ok": False, "error": "not implemented"})
 	else:
@@ -106,10 +104,10 @@ def getGeometry(filter: Filter, elements: dict) -> list:
 	return ret_values
 
 
-def _getBBoxSize(elements: dict) -> list:
+def getBBoxSize(elements: dict) -> list:
 	"""Gets the size of the fitted Bounding Box of the elements."""
 	ret_values = []
-	bboxes_raw = rtc("Get3DBoundingBoxes", {"elements": elements})
+	bboxes_raw = tapir.get3DBoundingBoxes(elements)
 	for i, item in enumerate(bboxes_raw["boundingBoxes3D"]):
 		dimensions = {
 			"x": item["boundingBox3D"]["xMax"] - item["boundingBox3D"]["xMin"],
