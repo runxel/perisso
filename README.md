@@ -5,7 +5,7 @@
 
 ## Overview
 _Tapir_ provides a collection of tooling to assist the usage of the JSON API of Archicad.  
-_Perisso_ is a Python package based on this fantastic work and aims to make it even easier to interact with and manipulate digital architectural model elements, by employing a fluent interface. This includes offering an efficient way to filter elements based on various criteria.
+_Perisso_ is based on this fantastic work and provides a consolidated frontend for using tapir. This Python package aims to make it even easier to interact with and manipulate digital architectural model elements, by employing a fluent interface. This includes offering an efficient way to filter elements based on various criteria, and calling tapir functions those elements.
 
 
 ## Installation
