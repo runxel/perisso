@@ -760,6 +760,334 @@ class Arc:
 		return self.__str__()
 
 
+class Polyline:
+	"""A 2D polyline class that handles coordinates and optional arc segments."""
+
+	def __init__(
+		self,
+		coordinates: list[Union[Coordinate, dict, tuple]],
+		arcs: list[dict] = None,
+		is_closed: bool = False,
+	):
+		"""Initialize a polyline with coordinates and optional arcs.
+
+		Args:
+			coordinates: List of Coordinate objects, dictionaries, or tuples.
+			arcs: Optional list of arc definitions with begIndex, endIndex, arcAngle.
+			is_closed: If True, automatically closes the polyline by duplicating first point.
+		"""
+		self.coordinates = []
+		self.arcs = arcs or []
+		self.is_closed = is_closed
+
+		# Convert coordinates to Coordinate objects
+		for coord in coordinates:
+			if isinstance(coord, Coordinate):
+				self.coordinates.append(coord)
+			elif isinstance(coord, dict):
+				self.coordinates.append(Coordinate.from_dict(coord))
+			elif isinstance(coord, (list, tuple)) and len(coord) >= 2:
+				self.coordinates.append(Coordinate(coord[0], coord[1]))
+			else:
+				raise ValueError(f"Invalid coordinate format: {coord}")
+
+		# Handle closed polyline
+		if self.is_closed and len(self.coordinates) > 1:
+			# Check if already closed (first and last points are the same)
+			if not self.coordinates[0].is_close(self.coordinates[-1]):
+				# Add first point as last point to close the polyline
+				self.coordinates.append(
+					Coordinate(self.coordinates[0].x, self.coordinates[0].y)
+				)
+
+		# Validate and process arcs
+		self._validate_arcs()
+
+	def _validate_arcs(self):
+		"""Validate arc definitions and set implicit endIndex values."""
+		if not self.arcs:
+			return
+
+		for i, arc in enumerate(self.arcs):
+			# Validate required fields
+			if "begIndex" not in arc:
+				raise ValueError(f"Arc {i} missing 'begIndex'")
+			if "arcAngle" not in arc:
+				raise ValueError(f"Arc {i} missing 'arcAngle'")
+
+			beg_index = arc["begIndex"]
+
+			# Set implicit endIndex if not specified
+			if "endIndex" not in arc:
+				arc["endIndex"] = beg_index + 1
+
+			end_index = arc["endIndex"]
+
+			# Validate indices
+			if beg_index < 0 or beg_index >= len(self.coordinates):
+				raise ValueError(f"Arc {i} begIndex {beg_index} out of range")
+			if end_index < 0 or end_index >= len(self.coordinates):
+				raise ValueError(f"Arc {i} endIndex {end_index} out of range")
+			if beg_index >= end_index:
+				raise ValueError(f"Arc {i} begIndex must be less than endIndex")
+
+	@property
+	def length(self) -> float:
+		"""Calculate the total length of the polyline."""
+		if len(self.coordinates) < 2:
+			return 0.0
+
+		total_length = 0.0
+		arc_lookup = {
+			(arc["begIndex"], arc["endIndex"]): arc["arcAngle"] for arc in self.arcs
+		}
+
+		# Calculate length for each segment
+		for i in range(len(self.coordinates) - 1):
+			start_point = self.coordinates[i]
+			end_point = self.coordinates[i + 1]
+
+			# Check if this segment is an arc
+			if (i, i + 1) in arc_lookup:
+				# This is an arc segment
+				arc_angle = arc_lookup[(i, i + 1)]
+				arc = Arc(start_point, end_point, arc_angle)
+				segment_length = arc.length
+			else:
+				# This is a straight segment
+				segment_length = start_point.distance_to(end_point)
+
+			total_length += segment_length
+
+		return total_length
+
+	@property
+	def vertex_count(self) -> int:
+		"""Get the number of vertices in the polyline."""
+		return len(self.coordinates)
+
+	@property
+	def segment_count(self) -> int:
+		"""Get the number of segments in the polyline."""
+		return max(0, len(self.coordinates) - 1)
+
+	def get_segment(self, index: int) -> Union[Coordinate, Arc]:
+		"""Get a segment by index (returns either straight line endpoints or Arc object).
+
+		Args:
+			index: Segment index (0-based).
+
+		Returns:
+			Tuple of (start_coord, end_coord) for straight segments, or Arc object for arc segments.
+		"""
+		if index < 0 or index >= self.segment_count:
+			raise IndexError(f"Segment index {index} out of range")
+
+		start_point = self.coordinates[index]
+		end_point = self.coordinates[index + 1]
+
+		# Check if this segment is an arc
+		arc_lookup = {
+			(arc["begIndex"], arc["endIndex"]): arc["arcAngle"] for arc in self.arcs
+		}
+
+		if (index, index + 1) in arc_lookup:
+			arc_angle = arc_lookup[(index, index + 1)]
+			return Arc(start_point, end_point, arc_angle)
+		else:
+			return (start_point, end_point)
+
+	def get_arc_segments(self) -> list[Arc]:
+		"""Get all arc segments as Arc objects."""
+		arc_segments = []
+		for arc_def in self.arcs:
+			start_point = self.coordinates[arc_def["begIndex"]]
+			end_point = self.coordinates[arc_def["endIndex"]]
+			arc_segments.append(Arc(start_point, end_point, arc_def["arcAngle"]))
+		return arc_segments
+
+	def get_straight_segments(self) -> list[tuple[Coordinate, Coordinate]]:
+		"""Get all straight segments as coordinate pairs."""
+		arc_lookup = {(arc["begIndex"], arc["endIndex"]) for arc in self.arcs}
+		straight_segments = []
+
+		for i in range(self.segment_count):
+			if (i, i + 1) not in arc_lookup:
+				straight_segments.append((self.coordinates[i], self.coordinates[i + 1]))
+
+		return straight_segments
+
+	def add_coordinate(
+		self, coordinate: Union[Coordinate, dict, tuple], index: int = None
+	):
+		"""Add a coordinate at specified index (or at the end if index is None).
+
+		Note: Adding coordinates may invalidate existing arc indices.
+		"""
+		if isinstance(coordinate, Coordinate):
+			new_coord = coordinate
+		elif isinstance(coordinate, dict):
+			new_coord = Coordinate.from_dict(coordinate)
+		elif isinstance(coordinate, (list, tuple)) and len(coordinate) >= 2:
+			new_coord = Coordinate(coordinate[0], coordinate[1])
+		else:
+			raise ValueError(f"Invalid coordinate format: {coordinate}")
+
+		if index is None:
+			# Add at the end (but before the closing point if closed)
+			if self.is_closed and len(self.coordinates) > 1:
+				self.coordinates.insert(-1, new_coord)
+			else:
+				self.coordinates.append(new_coord)
+		else:
+			self.coordinates.insert(index, new_coord)
+
+		# Note: This may invalidate arc indices...
+
+	def add_arc(self, beg_index: int, end_index: int = None, arc_angle: float = 0.0):
+		"""Add an arc definition to the polyline.
+
+		Args:
+			beg_index (`int`): The index of the node where the arc starts.
+				Please remember that in Python indices start at 0 (zero)!
+			end_index (`int`): Optional. Implicitely one node after 'beg_index'.
+			arc_angle (`float`): Angle of the arc; if positive, the arc will be on the right-hand side
+				of a hypothetical straight segment between the points.
+		"""
+		if end_index is None:
+			end_index = beg_index + 1
+
+		arc_def = {"begIndex": beg_index, "endIndex": end_index, "arcAngle": arc_angle}
+
+		self.arcs.append(arc_def)
+		self._validate_arcs()
+
+	def close(self):
+		"""Close the polyline by adding the first point as the last point."""
+		if not self.is_closed and len(self.coordinates) > 1:
+			if not self.coordinates[0].is_close(self.coordinates[-1]):
+				self.coordinates.append(
+					Coordinate(self.coordinates[0].x, self.coordinates[0].y)
+				)
+			self.is_closed = True
+
+	def open(self):
+		"""Open the polyline by removing the last point if it equals the first."""
+		if self.is_closed and len(self.coordinates) > 2:
+			if self.coordinates[0].is_close(self.coordinates[-1]):
+				self.coordinates.pop()
+			self.is_closed = False
+
+	def reverse(self):
+		"""Reverse the direction of the polyline."""
+		self.coordinates.reverse()
+
+		# Update arc indices and reverse arc angles
+		max_index = len(self.coordinates) - 1
+		for arc in self.arcs:
+			old_beg = arc["begIndex"]
+			old_end = arc["endIndex"]
+			arc["begIndex"] = max_index - old_end
+			arc["endIndex"] = max_index - old_beg
+			arc["arcAngle"] = -arc["arcAngle"]  # Reverse arc direction
+
+		# Sort arcs by begIndex to maintain order
+		self.arcs.sort(key=lambda x: x["begIndex"])
+
+	def to_dict(self) -> dict:
+		"""Convert to dictionary representation matching Archicad format."""
+		result = {"coordinates": [coord.to_dict() for coord in self.coordinates]}
+
+		if self.arcs:
+			result["arcs"] = self.arcs.copy()
+
+		return result
+
+	@classmethod
+	def from_dict(cls, data: dict, is_closed: bool = False) -> "Polyline":
+		"""Create polyline from dictionary (Archicad format)."""
+		coordinates = data.get("coordinates", [])
+		arcs = data.get("arcs", [])
+		return cls(coordinates, arcs, is_closed)
+
+	@classmethod
+	def rectangle(
+		cls, corner1: Union[Coordinate, tuple], corner2: Union[Coordinate, tuple]
+	) -> "Polyline":
+		"""Create a rectangular polyline from two opposite corners."""
+		if isinstance(corner1, (list, tuple)):
+			corner1 = Coordinate(corner1[0], corner1[1])
+		if isinstance(corner2, (list, tuple)):
+			corner2 = Coordinate(corner2[0], corner2[1])
+
+		coordinates = [
+			corner1,
+			Coordinate(corner2.x, corner1.y),
+			corner2,
+			Coordinate(corner1.x, corner2.y),
+		]
+
+		return cls(coordinates, is_closed=True)
+
+	@classmethod
+	def circle_approximation(
+		cls, center: Union[Coordinate, tuple], radius: float, segments: int = 16
+	) -> "Polyline":
+		"""Create a circular polyline approximation using line segments."""
+		if isinstance(center, (list, tuple)):
+			center = Coordinate(center[0], center[1])
+
+		coordinates = []
+		angle_step = 2 * math.pi / segments
+
+		for i in range(segments):
+			angle = i * angle_step
+			x = center.x + radius * math.cos(angle)
+			y = center.y + radius * math.sin(angle)
+			coordinates.append(Coordinate(x, y))
+
+		return cls(coordinates, is_closed=True)
+
+	# Container operations
+	def __len__(self) -> int:
+		"""Return number of coordinates."""
+		return len(self.coordinates)
+
+	def __getitem__(self, index: int) -> Coordinate:
+		"""Get coordinate by index."""
+		return self.coordinates[index]
+
+	def __setitem__(self, index: int, value: Union[Coordinate, dict, tuple]):
+		"""Set coordinate by index."""
+		if isinstance(value, Coordinate):
+			self.coordinates[index] = value
+		elif isinstance(value, dict):
+			self.coordinates[index] = Coordinate.from_dict(value)
+		elif isinstance(value, (list, tuple)) and len(value) >= 2:
+			self.coordinates[index] = Coordinate(value[0], value[1])
+		else:
+			raise ValueError(f"Invalid coordinate format: {value}")
+
+	def __iter__(self) -> Iterator[Coordinate]:
+		"""Iterate over coordinates."""
+		return iter(self.coordinates)
+
+	def __contains__(self, coordinate: Coordinate) -> bool:
+		"""Check if coordinate exists in polyline."""
+		return any(coord.is_close(coordinate) for coord in self.coordinates)
+
+	# String representations
+	def __str__(self) -> str:
+		"""Simple string representation."""
+		closed_str = "closed with " if self.is_closed else ""
+		arc_str = f", {len(self.arcs)} arcs" if self.arcs else ""
+		return f"Polyline ({closed_str}{len(self.coordinates)} points{arc_str})"
+
+	def __repr__(self) -> str:
+		"""Detailed string representation."""
+		return f"Polyline (coordinates={self.coordinates}, arcs={self.arcs}, is_closed={self.is_closed})"
+
+
 class Color:
 	"""A color class that handles various color formats and converts them to RGBA integers."""
 
