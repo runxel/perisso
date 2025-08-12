@@ -5,7 +5,7 @@ from pathlib import Path
 import os
 from .connection import acc, act
 from .enums import ElType, AttrType, ProjectInfo
-from .types import Vector, Coordinate, Color
+from .types import Vector, Coordinate, Polyline, Color
 
 
 def _printcol(text: str):
@@ -563,32 +563,68 @@ class TapirCommands:
 
 	def CreateSlabs(
 		self,
-		coors: List[Coordinate] | Dict,
-		arcs: List[Dict] = [],
-		holes: List[Dict] = [],
+		polylines: List[Polyline] | Polyline,
+		holes: List[Polyline] = None,
 		level: float = 0.0,
 	) -> dict:
 		"""Creates Slab elements based on the given parameters.
 
 		Args:
-			coors (`List[Coordinate] | Dict`): Coordinates as Coordinate object in a list, or a ready made dict.
-			arcs: Looks like this: `[{"begIndex": 0, "endIndex": 1, "arcAngle": 3.14}]`"""
+			polylines: Polyline objects defining the slab boundary, or list of Polylines for multiple slabs.
+			holes: Optional list of Polyline objects defining holes in the slab.
+			level (`float`): Z-level of the slab.
+
+		Note: All polylines will be automatically closed for slab creation.
+		"""
 		name_ = inspect.currentframe().f_code.co_name
-		if level is None:
-			# if explicitely not providing level it should be stored in the coordinates
-			level = coors[0].z
-		if not isinstance(coors, dict):
-			coors = [coor.to_2d().to_dict() for coor in coors]
-		params = {
-			"slabsData": [
-				{
-					"level": level,
-					"polygonCoordinates": coors,
-					"polygonArcs": arcs,
-					"holes": holes,
-				}
-			]
-		}
+
+		# Handle single Polyline or list of Polylines
+		if isinstance(polylines, Polyline):
+			polylines = [polylines]
+
+		slabs_data = []
+		for polyline in polylines:
+			# Ensure the polyline is closed for slab creation
+			if not polyline.is_closed:
+				polyline.close()
+
+			# Convert polyline to dictionary format
+			polyline_dict = polyline.to_dict()
+
+			# Prepare holes data
+			holes_data = []
+			if holes:
+				for hole in holes:
+					if isinstance(hole, Polyline):
+						# Ensure hole polylines are also closed
+						if not hole.is_closed:
+							hole.close()
+
+						hole_dict = hole.to_dict()
+						hole_data = {"polygonCoordinates": hole_dict["coordinates"]}
+
+						# Add arcs if they exist for this hole
+						if "arcs" in hole_dict:
+							hole_data["polygonArcs"] = hole_dict["arcs"]
+
+						holes_data.append(hole_data)
+					else:
+						raise TypeError("Holes must be Polyline objects")
+
+			# Build slab data structure
+			slab_data = {
+				"level": level,
+				"polygonCoordinates": polyline_dict["coordinates"],
+				"holes": holes_data,
+			}
+
+			# Add arcs if they exist
+			if "arcs" in polyline_dict:
+				slab_data["polygonArcs"] = polyline_dict["arcs"]
+
+			slabs_data.append(slab_data)
+
+		params = {"slabsData": slabs_data}
 		return self._run(name_, params)
 
 	def CreateZones(self, coors: List[Coordinate]) -> dict:
@@ -600,13 +636,28 @@ class TapirCommands:
 		name_ = inspect.currentframe().f_code.co_name
 		return self._run(name_, params)
 
-	def CreatePolylines(self, coors: List[Coordinate]) -> dict:
+	def CreatePolylines(
+		self, polylines: List[Polyline] | Polyline, floorInd: int = None
+	) -> dict:
 		"""Creates Polyline elements based on the given parameters."""
-		raise NotImplementedError
-		params = {
-			"columnsData": [{"coordinates": coor.to_3d().to_dict()} for coor in coors]
-		}
 		name_ = inspect.currentframe().f_code.co_name
+
+		# Handle single Polyline or list of Polylines
+		if isinstance(polylines, Polyline):
+			polylines = [polylines]
+
+		polylines_data = []
+		for polyline in polylines:
+			# Convert polyline to dictionary format
+			polyline_dict = polyline.to_dict()
+
+			# Add floor index if specified
+			if floorInd is not None:
+				polyline_dict["floorInd"] = floorInd
+
+			polylines_data.append(polyline_dict)
+
+		params = {"polylinesData": polylines_data}
 		return self._run(name_, params)
 
 	def CreateObjects(self, coors: List[Coordinate]) -> dict:
