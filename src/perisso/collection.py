@@ -40,7 +40,20 @@ class ElementCollection:
 			),
 			# geometry
 			Filter.HEIGHT: lambda elements: getGeometry(Filter.HEIGHT, elements),
+			Filter.LENGTH: lambda elements: getGeometry(Filter.LENGTH, elements),
 		}
+
+	@classmethod
+	def from_dict(cls, data: dict):
+		"""Create ElementCollection from dictionary.
+
+		Args:
+			data (`dict`): An "elements" dict.
+
+		>>> perisso().from_dict({"elements": [{"elementId": {"guid": "F6C4C267-0E38-DA48-9D66-D576DC855B3B"}}]})
+		"""
+		collection = cls(data["elements"])
+		return collection
 
 	def filterBy(self, field: Filter):
 		"""Set the field to filter by. Accepts a Filter enum."""
@@ -366,40 +379,25 @@ class ElementCollection:
 	def highlight(
 		self,
 		*,
-		color: list[int] = [77, 235, 103, 100],
-		noncolor: list[int] = [164, 166, 165, 128],
+		highlightcolor: Color | List[Color] = Color("green"),
+		mutedcolor: Color = Color(164, 166, 165, 128),
 		wireframe=True,
 	):
-		"""Highlight elements in the collection with specified colors.
-		Args:
-			color (`list[int]`, optional): RGBA color values for highlighted elements.
-				Must be a list of exactly 4 integers.
-			noncolor (`list[int]`, optional): RGBA color values for non-highlighted elements.
-				Must be a list of exactly 4 integers.
-			wireframe (`bool`, optional): Whether to display elements in wireframe mode in 3D.
-				Defaults to True.
-		Returns:
-			self: Returns the collection instance for method chaining.
-		Raises:
-			ValueError: If color or noncolor parameters are not lists of exactly 4 integers,
-				or if any color values are not integers.
-		Example:
-			>>> collection.highlight(color=[255, 0, 0, 255], wireframe=False)
-			>>> collection.highlight(noncolor=[128, 128, 128, 100])
-		"""
-		# Validate color parameter
-		if not isinstance(color, list) or len(color) != 4:
-			raise ValueError("Color must be a list of exactly 4 integers")
-		if not all(isinstance(c, int) for c in color):
-			raise ValueError("All color values must be integers")
-		# Validate nonhighlightedcolor parameter
-		if not isinstance(noncolor, list) or len(noncolor) != 4:
-			raise ValueError("noncolor must be a list of exactly 4 integers")
-		if not all(isinstance(c, int) for c in noncolor):
-			raise ValueError("All noncolor values must be integers")
+		"""Highlight the elements in the Collection in the given color and mute all other elements.
 
+		Args:
+			highlightcolor (`Color | List[Color]`): A Color or list of Colors used to highlight the element(s).
+			mutedcolor (`Color`): A Color to be used on the non-highlighted elements. Optional.
+			wirefame (`bool`): Switch non-highlighted elements in the 3D window to wireframe. Optional.
+
+		Example:
+			>>> collection.highlight(highlightcolor=Color(230, 20, 10, 255), wireframe=False)
+		"""
 		tapir.HighlightElements(
-			self.elements, color=[color], mutedcolor=noncolor, wireframe=wireframe
+			self.elements,
+			highlightcolor=highlightcolor,
+			mutedcolor=mutedcolor,
+			wireframe=wireframe,
 		)
 		return self
 
@@ -417,8 +415,17 @@ class ElementCollection:
 		"""Support slicing and indexing operations."""
 		if isinstance(key, slice):
 			# return a new ElementCollection with sliced elements
-			return ElementCollection(self.elements[key])
+			sliced_elements = self.elements[key]
+			return ElementCollection(sliced_elements)
 		elif isinstance(key, int):
+			# Handle negative indices properly
+			if key < 0:
+				key = len(self.elements) + key
+
+			# Check bounds
+			if key >= len(self.elements) or key < 0:
+				raise IndexError("Element index out of range")
+
 			# return the individual element at the given index
 			return self.elements[key]
 		else:

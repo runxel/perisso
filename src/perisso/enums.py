@@ -191,5 +191,5 @@ class Filter(Enum):
 	PROPERTY = "property"
 
 	# geometry
-	# LENGTH = "length"
+	LENGTH = "length"
 	HEIGHT = "height"
