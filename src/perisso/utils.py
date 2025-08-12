@@ -1,6 +1,7 @@
 import json
 from .connection import acc, acu, act
 from .enums import Filter, ElType
+from .types import Coordinate, Arc
 from .tapir_commands import tapir
 
 
@@ -62,7 +63,7 @@ def _getPropValues(*, builtin: str = None, propGUID: str = None, elements: dict 
 	See also: https://github.com/ENZYME-APD/tapir-archicad-automation/issues/285"""
 	if builtin and (propGUID is None):
 		propGUID = str(acu.GetBuiltInPropertyId(builtin).guid)
-	json_ = tapir.getPropertyValuesOfElements(elements, [propGUID])[
+	json_ = tapir.GetPropertyValuesOfElements(elements, [propGUID])[
 		"propertyValuesForElements"
 	]
 	ret_values = []
@@ -80,7 +81,7 @@ def _getPropValues(*, builtin: str = None, propGUID: str = None, elements: dict 
 
 
 def getDetails(filter: Filter, elements: dict) -> list:
-	json_ = tapir.getDetailsOfElements(elements)["detailsOfElements"]
+	json_ = tapir.GetDetailsOfElements(elements)["detailsOfElements"]
 	ret_values = []
 	if filter == Filter.ELEMENT_TYPE:
 		# ElementType can never be error
@@ -92,10 +93,10 @@ def getDetails(filter: Filter, elements: dict) -> list:
 
 def getGeometry(filter: Filter, elements: dict) -> list:
 	ret_values = []
-	elem_types = getDetails(filter=Filter.ELEMENT_TYPE, elements=elements)
+	details = tapir.GetDetailsOfElements(elements)["detailsOfElements"]
 	if filter == Filter.HEIGHT:
 		for i, item in enumerate(elements):
-			if elem_types[i]["value"] == ElType.MORPH.value:
+			if details[i]["type"] == ElType.MORPH.value:
 				ret_values.append({"ok": True, "value": getBBoxSize([item])[0]["z"]})
 			else:
 				ret_values.append({"ok": False, "error": "not implemented"})
@@ -107,7 +108,7 @@ def getGeometry(filter: Filter, elements: dict) -> list:
 def getBBoxSize(elements: dict) -> list:
 	"""Gets the size of the fitted Bounding Box of the elements."""
 	ret_values = []
-	bboxes_raw = tapir.get3DBoundingBoxes(elements)
+	bboxes_raw = tapir.Get3DBoundingBoxes(elements)
 	for i, item in enumerate(bboxes_raw["boundingBoxes3D"]):
 		dimensions = {
 			"x": item["boundingBox3D"]["xMax"] - item["boundingBox3D"]["xMin"],

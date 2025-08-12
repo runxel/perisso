@@ -1,5 +1,6 @@
 from typing import Union, Iterator, Tuple
 import math
+import random
 
 
 class Vector:
@@ -379,7 +380,7 @@ class Coordinate:
 
 	def translate(self, vector: "Vector") -> "Coordinate":
 		"""Translate this coordinate by a vector."""
-		from .vector import Vector
+		from .types import Vector
 
 		if not isinstance(vector, Vector):
 			raise TypeError("Can only translate by a Vector")
@@ -394,7 +395,7 @@ class Coordinate:
 
 	def vector_to(self, other: "Coordinate") -> "Vector":
 		"""Create a vector from this coordinate to another coordinate."""
-		from .vector import Vector
+		from .types import Vector
 
 		if not isinstance(other, Coordinate):
 			raise TypeError("Can only create vector to another Coordinate")
@@ -652,3 +653,456 @@ class Coordinate:
 			return hash((self.x, self.y))
 		else:
 			return hash((self.x, self.y, self.z))
+
+
+class Arc:
+	"""An arc segment defined by start point, end point, and arc angle."""
+
+	def __init__(
+		self, start_point: Coordinate, end_point: Coordinate, arc_angle: float
+	):
+		"""Initialize an arc with start point, end point, and arc angle.
+
+		Args:
+			start_point (`Coordinate`): Starting coordinate of the arc
+			end_point (`Coordinate`): Ending coordinate of the arc
+			arc_angle (`float`): Arc angle in radians (positive = counterclockwise)
+
+		This corresponds with the internal Archicad parametrization.
+		"""
+		self.start_point = start_point
+		self.end_point = end_point
+		self.arc_angle = float(arc_angle)
+
+	@property
+	def chord_length(self) -> float:
+		"""Calculate the chord length (straight line distance between endpoints)."""
+		return self.start_point.distance_to(self.end_point)
+
+	@property
+	def radius(self) -> float:
+		"""Calculate the radius of the arc."""
+		if abs(self.arc_angle) < 1e-10:  # Nearly straight line
+			return float("inf")
+
+		chord = self.chord_length
+		return chord / (2 * math.sin(abs(self.arc_angle) / 2))
+
+	@property
+	def length(self) -> float:
+		"""Calculate the arc length."""
+		if abs(self.arc_angle) < 1e-10:  # Nearly straight line
+			return self.chord_length
+
+		return self.radius * abs(self.arc_angle)
+
+	@property
+	def center(self) -> Coordinate:
+		"""Calculate the center point of the arc."""
+		if abs(self.arc_angle) < 1e-10:  # Nearly straight line
+			return self.start_point.midpoint_to(self.end_point)
+
+		# Midpoint of chord
+		chord_mid = self.start_point.midpoint_to(self.end_point)
+
+		# Vector from start to end
+		chord_vector = self.start_point.vector_to(self.end_point)
+
+		# Perpendicular vector (rotated 90 degrees)
+		if chord_vector.is_2d:
+			perp_vector = Vector(-chord_vector.y, chord_vector.x)
+		else:
+			# in 3D we need a reference plane - let's assume the XY plane
+			perp_vector = Vector(-chord_vector.y, chord_vector.x, 0)
+
+		# Distance from chord midpoint to arc center
+		chord_half = self.chord_length / 2
+		if abs(self.arc_angle) >= math.pi:
+			# Large arc
+			sagitta = self.radius - math.sqrt(self.radius**2 - chord_half**2)
+		else:
+			# Small arc
+			sagitta = self.radius - math.sqrt(self.radius**2 - chord_half**2)
+
+		# Determine direction based on arc angle sign
+		if self.arc_angle < 0:
+			sagitta = -sagitta
+
+		# Normalize perpendicular vector and scale by sagitta
+		perp_unit = perp_vector.normalize()
+		offset_vector = perp_unit * sagitta
+
+		return chord_mid.translate(offset_vector)
+
+	def to_dict(self) -> dict:
+		"""Convert to dictionary representation."""
+		return {
+			"startPoint": self.start_point.to_dict(),
+			"endPoint": self.end_point.to_dict(),
+			"arcAngle": self.arc_angle,
+			"length": self.length,
+			"radius": self.radius,
+		}
+
+	@classmethod
+	def from_coordinates_and_angle(cls, start: dict, end: dict, angle: float) -> "Arc":
+		"""Create arc from coordinate dictionaries and angle."""
+		start_coord = Coordinate.from_dict(start)
+		end_coord = Coordinate.from_dict(end)
+		return cls(start_coord, end_coord, angle)
+
+	def __str__(self) -> str:
+		"""String representation of the arc."""
+		return f"Arc(start={self.start_point}, end={self.end_point}, angle={self.arc_angle:.4f}rad, length={self.length:.4f})"
+
+	def __repr__(self) -> str:
+		"""Detailed string representation."""
+		return self.__str__()
+
+
+class Color:
+	"""A color class that handles various color formats and converts them to RGBA integers."""
+
+	# Predefined color names
+	COLORS = {
+		"black": (0, 0, 0, 255),
+		"white": (255, 255, 255, 255),
+		"red": (255, 0, 0, 255),
+		"green": (0, 128, 0, 255),
+		"blue": (0, 0, 255, 255),
+		"yellow": (255, 255, 0, 255),
+		"cyan": (0, 255, 255, 255),
+		"magenta": (255, 0, 255, 255),
+		"orange": (255, 165, 0, 255),
+		"purple": (128, 0, 128, 255),
+		"pink": (255, 192, 203, 255),
+		"brown": (165, 42, 42, 255),
+		"gray": (128, 128, 128, 255),
+		"grey": (128, 128, 128, 255),
+		"lime": (0, 255, 0, 255),
+		"navy": (0, 0, 128, 255),
+		"olive": (128, 128, 0, 255),
+		"silver": (192, 192, 192, 255),
+		"teal": (0, 128, 128, 255),
+		"maroon": (128, 0, 0, 255),
+		"transparent": (0, 0, 0, 0),
+	}
+
+	def __init__(self, *args, **kwargs):
+		"""Initialize a color from various formats.
+
+		Args:
+			Can be called in multiple ways:
+			- Color("#FF0000") - 6-digit hex
+			- Color("#FF0000FF") - 8-digit hex with alpha
+			- Color("red") - named color
+			- Color(255, 0, 0) - RGB integers (0-255)
+			- Color(255, 0, 0, 128) - RGBA integers (0-255)
+			- Color(r=1.0, g=0.0, b=0.0) - RGB floats (0.0-1.0)
+			- Color(r=1.0, g=0.0, b=0.0, a=0.5) - RGBA floats (0.0-1.0)
+		"""
+		self.r: int = 0
+		self.g: int = 0
+		self.b: int = 0
+		self.a: int = 255
+
+		if len(args) == 1:
+			arg = args[0]
+			if isinstance(arg, str):
+				if arg.startswith("#"):
+					self._from_hex(arg)
+				else:
+					self._from_name(arg)
+			elif isinstance(arg, (list, tuple)) and len(arg) in (3, 4):
+				self._from_sequence(arg)
+			else:
+				raise ValueError(f"Invalid single argument: {arg}")
+		elif len(args) == 3:
+			# RGB integers
+			self._from_rgb_int(*args)
+		elif len(args) == 4:
+			# RGBA integers
+			self._from_rgba_int(*args)
+		elif len(args) == 0 and kwargs:
+			# Keyword arguments (floats or integers)
+			self._from_kwargs(kwargs)
+		else:
+			raise ValueError(f"Invalid arguments: {args}, {kwargs}")
+
+	def _from_hex(self, hex_string: str):
+		"""Parse hex color string."""
+		hex_string = hex_string.lstrip("#")
+
+		if len(hex_string) == 6:
+			# RGB hex
+			self.r = int(hex_string[0:2], 16)
+			self.g = int(hex_string[2:4], 16)
+			self.b = int(hex_string[4:6], 16)
+			self.a = 255
+		elif len(hex_string) == 8:
+			# RGBA hex
+			self.r = int(hex_string[0:2], 16)
+			self.g = int(hex_string[2:4], 16)
+			self.b = int(hex_string[4:6], 16)
+			self.a = int(hex_string[6:8], 16)
+		else:
+			raise ValueError(f"Invalid hex color: #{hex_string}")
+
+	def _from_name(self, name: str):
+		"""Parse named color."""
+		name = name.lower()
+		if name in self.COLORS:
+			self.r, self.g, self.b, self.a = self.COLORS[name]
+		else:
+			raise ValueError(f"Unknown color name: {name}")
+
+	def _from_sequence(self, seq):
+		"""Parse from list or tuple."""
+		if len(seq) == 3:
+			# Check if values are floats (0-1) or integers (0-255)
+			if all(
+				isinstance(x, float) or (isinstance(x, (int, float)) and 0 <= x <= 1)
+				for x in seq
+			):
+				self._from_rgb_float(*seq)
+			else:
+				self._from_rgb_int(*seq)
+		elif len(seq) == 4:
+			# Check if values are floats (0-1) or integers (0-255)
+			if all(
+				isinstance(x, float) or (isinstance(x, (int, float)) and 0 <= x <= 1)
+				for x in seq
+			):
+				self._from_rgba_float(*seq)
+			else:
+				self._from_rgba_int(*seq)
+
+	def _from_rgb_int(self, r: int, g: int, b: int):
+		"""Parse from RGB integers (0-255)."""
+		self.r = self._clamp_int(r)
+		self.g = self._clamp_int(g)
+		self.b = self._clamp_int(b)
+		self.a = 255
+
+	def _from_rgba_int(self, r: int, g: int, b: int, a: int):
+		"""Parse from RGBA integers (0-255)."""
+		self.r = self._clamp_int(r)
+		self.g = self._clamp_int(g)
+		self.b = self._clamp_int(b)
+		self.a = self._clamp_int(a)
+
+	def _from_rgb_float(self, r: float, g: float, b: float):
+		"""Parse from RGB floats (0.0-1.0)."""
+		self.r = self._float_to_int(r)
+		self.g = self._float_to_int(g)
+		self.b = self._float_to_int(b)
+		self.a = 255
+
+	def _from_rgba_float(self, r: float, g: float, b: float, a: float):
+		"""Parse from RGBA floats (0.0-1.0)."""
+		self.r = self._float_to_int(r)
+		self.g = self._float_to_int(g)
+		self.b = self._float_to_int(b)
+		self.a = self._float_to_int(a)
+
+	def _from_kwargs(self, kwargs: dict):
+		"""Parse from keyword arguments."""
+		r = kwargs.get("r", 0)
+		g = kwargs.get("g", 0)
+		b = kwargs.get("b", 0)
+		a = kwargs.get(
+			"a",
+			1.0
+			if any(isinstance(v, float) and 0 <= v <= 1 for v in kwargs.values())
+			else 255,
+		)
+
+		# Determine if values are floats or integers
+		if any(isinstance(v, float) and 0 <= v <= 1 for v in [r, g, b, a]):
+			self._from_rgba_float(r, g, b, a)
+		else:
+			self._from_rgba_int(r, g, b, a)
+
+	def _clamp_int(self, value: int) -> int:
+		"""Clamp integer value to 0-255 range."""
+		return max(0, min(255, int(value)))
+
+	def _float_to_int(self, value: float) -> int:
+		"""Convert float (0.0-1.0) to integer (0-255)."""
+		return self._clamp_int(round(value * 255))
+
+	@property
+	def rgb(self) -> tuple[int, int, int]:
+		"""Get RGB values as integers (0-255)."""
+		return (self.r, self.g, self.b)
+
+	@property
+	def rgba(self) -> tuple[int, int, int, int]:
+		"""Get RGBA values as integers (0-255)."""
+		return (self.r, self.g, self.b, self.a)
+
+	@property
+	def rgb_float(self) -> tuple[float, float, float]:
+		"""Get RGB values as floats (0.0-1.0)."""
+		return (self.r / 255.0, self.g / 255.0, self.b / 255.0)
+
+	@property
+	def rgba_float(self) -> tuple[float, float, float, float]:
+		"""Get RGBA values as floats (0.0-1.0)."""
+		return (self.r / 255.0, self.g / 255.0, self.b / 255.0, self.a / 255.0)
+
+	def to_hex(self, include_alpha: bool = False) -> str:
+		"""Convert to hex string."""
+		if include_alpha:
+			return f"#{self.r:02X}{self.g:02X}{self.b:02X}{self.a:02X}"
+		else:
+			return f"#{self.r:02X}{self.g:02X}{self.b:02X}"
+
+	def to_list(self, include_alpha: bool = True) -> list[int]:
+		"""Convert to list of integers."""
+		if include_alpha:
+			return [self.r, self.g, self.b, self.a]
+		else:
+			return [self.r, self.g, self.b]
+
+	def to_dict(self, include_alpha: bool = True) -> dict:
+		"""Convert to dictionary."""
+		result = {"r": self.r, "g": self.g, "b": self.b}
+		if include_alpha:
+			result["a"] = self.a
+		return result
+
+	def with_alpha(self, alpha: Union[int, float]) -> "Color":
+		"""Return a new color with different alpha value."""
+		new_color = Color(self.r, self.g, self.b, self.a)
+		if isinstance(alpha, float):
+			new_color.a = new_color._float_to_int(alpha)
+		else:
+			new_color.a = new_color._clamp_int(alpha)
+		return new_color
+
+	def lighten(self, factor: float = 0.1) -> "Color":
+		"""Return a lighter version of this color."""
+		factor = max(0.0, min(1.0, factor))
+		return Color(
+			min(255, int(self.r + (255 - self.r) * factor)),
+			min(255, int(self.g + (255 - self.g) * factor)),
+			min(255, int(self.b + (255 - self.b) * factor)),
+			self.a,
+		)
+
+	def darken(self, factor: float = 0.1) -> "Color":
+		"""Return a darker version of this color."""
+		factor = max(0.0, min(1.0, factor))
+		return Color(
+			int(self.r * (1 - factor)),
+			int(self.g * (1 - factor)),
+			int(self.b * (1 - factor)),
+			self.a,
+		)
+
+	@classmethod
+	def from_name(cls, name: str) -> "Color":
+		"""Create color from name."""
+		return cls(name)
+
+	@classmethod
+	def from_hex(cls, hex_string: str) -> "Color":
+		"""Create color from hex string."""
+		return cls(hex_string)
+
+	@classmethod
+	def from_rgb(cls, r: int, g: int, b: int) -> "Color":
+		"""Create color from RGB integers."""
+		return cls(r, g, b)
+
+	@classmethod
+	def from_rgba(cls, r: int, g: int, b: int, a: int) -> "Color":
+		"""Create color from RGBA integers."""
+		return cls(r, g, b, a)
+
+	@classmethod
+	def from_rgb_float(cls, r: float, g: float, b: float) -> "Color":
+		"""Create color from RGB floats."""
+		return cls(r=r, g=g, b=b)
+
+	@classmethod
+	def from_rgba_float(cls, r: float, g: float, b: float, a: float) -> "Color":
+		"""Create color from RGBA floats."""
+		return cls(r=r, g=g, b=b, a=a)
+
+	@classmethod
+	def random(cls) -> "Color":
+		"""Create a random color from predefined colors (excluding transparent and grey)."""
+		# Get all color names except 'transparent' and 'grey'
+		available_colors = [
+			name
+			for name in cls.COLORS.keys()
+			if name not in ["transparent", "grey", "gray", "silver", "white", "black"]
+		]
+		random_color_name = random.choice(available_colors)
+		return cls(random_color_name)
+
+	# Comparison operations
+	def __eq__(self, other) -> bool:
+		"""Check equality with another color."""
+		if not isinstance(other, Color):
+			return False
+		return self.rgba == other.rgba
+
+	def __ne__(self, other) -> bool:
+		"""Check inequality with another color."""
+		return not self.__eq__(other)
+
+	# String representations
+	def __str__(self) -> str:
+		"""Simple string representation."""
+		return f"Color(r={self.r}, g={self.g}, b={self.b}, a={self.a})"
+
+	def __repr__(self) -> str:
+		"""Detailed string representation."""
+		return f"Color({self.r}, {self.g}, {self.b}, {self.a})"
+
+	# Hash support
+	def __hash__(self) -> int:
+		"""Hash support for colors."""
+		return hash(self.rgba)
+
+	# Container operations
+	def __getitem__(self, index: int) -> int:
+		"""Get component by index (0=r, 1=g, 2=b, 3=a)."""
+		if index == 0:
+			return self.r
+		elif index == 1:
+			return self.g
+		elif index == 2:
+			return self.b
+		elif index == 3:
+			return self.a
+		else:
+			raise IndexError("Color index out of range")
+
+	def __setitem__(self, index: int, value: int):
+		"""Set component by index (0=r, 1=g, 2=b, 3=a)."""
+		value = self._clamp_int(value)
+		if index == 0:
+			self.r = value
+		elif index == 1:
+			self.g = value
+		elif index == 2:
+			self.b = value
+		elif index == 3:
+			self.a = value
+		else:
+			raise IndexError("Color index out of range")
+
+	def __len__(self) -> int:
+		"""Return number of components (always 4 for RGBA)."""
+		return 4
+
+	def __iter__(self) -> Iterator[int]:
+		"""Iterate over RGBA components."""
+		yield self.r
+		yield self.g
+		yield self.b
+		yield self.a

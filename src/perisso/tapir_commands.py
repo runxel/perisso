@@ -1,10 +1,11 @@
 import inspect
+import re
 from typing import Dict, List, Any
 from pathlib import Path
 import os
 from .connection import acc, act
 from .enums import ElType, AttrType, ProjectInfo
-from .vector import Vector, Coordinate
+from .types import Vector, Coordinate, Color
 
 
 def _printcol(text: str):

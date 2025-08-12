@@ -1,6 +1,8 @@
+from typing import List
 from archicad import Types as act
 from .tapir_commands import tapir
 from .enums import ElType, Filter
+from .types import Color
 from .utils import getPropValues, getDetails, getGeometry, acu, _pprint  # noqa: F401 fmt: skip
 
 
