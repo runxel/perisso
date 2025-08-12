@@ -3,7 +3,7 @@
 from .core import perisso
 from .tapir_commands import tapir
 from .enums import Filter, ElType, AttrType, ProjectInfo
-from .types import Vector, Coordinate, Arc, Color
+from .types import Vector, Coordinate, Arc, Polyline, Color
 
 
 __all__ = [
@@ -16,5 +16,6 @@ __all__ = [
 	"Vector",
 	"Coordinate",
 	"Arc",
+	"Polyline",
 	"Color",
 ]
