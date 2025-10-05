@@ -57,7 +57,8 @@ See the [examples](https://github.com/runxel/perisso/tree/main/examples) for mor
 
 ## Contributing
 
-Please open an issue or submit a pull request for any enhancements or bug fixes. Contributions are welcome, but might not be accepted until `perisso` reached a somewhat stable state.
+Please open an issue or submit a pull request for any enhancements or bug fixes. Contributions are welcome, but might not be accepted until `perisso` reached a somewhat stable state.  
+Formatting is done with [`ruff`](https://astral.sh/ruff).
 
 
 ## License
