@@ -96,6 +96,29 @@ class AttrType(Enum):
 	BUILDINGMATERIAL = "BuildingMaterial"
 
 
+class PropertyDataType(Enum):
+	"""Enumeration of the Property Definition Data Types."""
+
+	NUMBER = 0
+	INTEGER = 1
+	STRING = 2
+	BOOLEAN = 3
+	LENGTH = 4
+	AREA = 5
+	VOLUME = 6
+	ANGLE = 7
+	NUMBERLIST = 8
+	INTEGERLIST = 9
+	STRINGLIST = 10
+	BOOLEANLIST = 11
+	LENGTHLIST = 12
+	AREALIST = 13
+	VOLUMELIST = 14
+	ANGLELIST = 15
+	SINGLEENUM = 16
+	MULTIENUM = 17
+
+
 class ProjectInfo(Enum):
 	PROJECTNAME = "PROJECTNAME"
 	PROJECT_DESCRIPTION = "PROJECT_DESCRIPTION"
@@ -182,7 +205,7 @@ class Filter(Enum):
 	# built-ins
 	ID = "ID"
 	PARENT_ID = "parent_ID"
-	HL_ID = "HL_ID"
+	HOTLINK_ID = "HOTLINK_ID"
 	HLE_ID = "HLE_ID"
 	LAYER = "layer"
 	GUID = "GUID"
