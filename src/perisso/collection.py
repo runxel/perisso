@@ -4,6 +4,7 @@ from .tapir_commands import tapir
 from .enums import ElType, Filter
 from .types import Color
 from .utils import getPropValues, getDetails, getGeometry, acu, _pprint  # noqa: F401 fmt: skip
+from .guid import _is_guid  # noqa: F401
 
 
 class ElementCollection:
@@ -20,7 +21,7 @@ class ElementCollection:
 			Filter.PARENT_ID: lambda elements: getPropValues(
 				builtin="IdAndCategories_ParentId", elements=elements
 			),
-			Filter.HL_ID: lambda elements: getPropValues(
+			Filter.HOTLINK_ID: lambda elements: getPropValues(
 				builtin="IdAndCategories_HotlinkMasterID", elements=elements
 			),
 			Filter.HLE_ID: lambda elements: getPropValues(
@@ -45,7 +46,7 @@ class ElementCollection:
 
 	@classmethod
 	def from_dict(cls, data: dict):
-		"""Create ElementCollection from dictionary.
+		"""Creates an ElementCollection from dictionary.
 
 		Args:
 			data (`dict`): An "elements" dict.
@@ -54,6 +55,33 @@ class ElementCollection:
 		"""
 		collection = cls(data["elements"])
 		return collection
+
+	@classmethod
+	def from_guid(cls, guids: str | list[str]):
+		"""Creates an ElementCollection from GUID(s).
+
+		Args:
+			guids (`str` | `list[str]`): A single GUID string or a list of GUID strings.
+
+		>>> perisso.from_guid("F6C4C267-0E38-DA48-9D66-D576DC855B3B")
+		"""
+		if isinstance(guids, str):
+			# Single GUID
+			elements = [{"elementId": {"guid": guids}}]
+		elif isinstance(guids, list):
+			# List of GUIDs
+			elements = [{"elementId": {"guid": guid}} for guid in guids]
+		else:
+			raise TypeError(
+				f"Provided GUIDs must be a string or list of strings. With '{guids}' you gave a {type(guids)}."
+			)
+
+		return cls(elements)
+
+	@property
+	def guids(self):
+		"""Returns a flat list of all element GUIDs in the ElementCollection."""
+		return [element["elementId"]["guid"] for element in self.elements]
 
 	def filterBy(self, field: Filter):
 		"""Set the field to filter by. Accepts a Filter enum."""
