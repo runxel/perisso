@@ -2,6 +2,8 @@
 > Short for "perissodactyla" /pəˌrɪsoʊˈdæktɪlə/ – the zoological order Tapiridae reside in.
 > It's an experimental [Tapir](https://github.com/ENZYME-APD/tapir-archicad-automation) utility.  
 
+![GitHub Tag](https://img.shields.io/github/v/tag/runxel/perisso)
+
 
 ## Overview
 _Tapir_ provides a collection of tooling to assist the usage of the JSON API of Archicad.  
