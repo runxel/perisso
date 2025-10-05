@@ -1,8 +1,13 @@
 import json
+from typing import Dict, List, TYPE_CHECKING
 from .connection import acc, acu, act
 from .enums import Filter, ElType
 from .types import Coordinate, Arc
-from .tapir_commands import tapir
+from .tapir_commands import tapir, _ensure_elem_list
+
+# Only import for type checking, not at runtime
+if TYPE_CHECKING:
+	from .collection import ElementCollection
 
 
 def run_tapir_command(command: str, *args):
@@ -14,7 +19,7 @@ def run_tapir_command(command: str, *args):
 	Args:
 		command (`str`): The name of the tapir command to be run.
 		*args (`dict`): Usually a dict with the additional parameters.
-			Could look like this: `{"elements": perisso().get()}`
+			Could look like this: `{"elements": perisso().get()}` or just `{"elements": perisso()}`
 	"""
 	if args:
 		return acc.ExecuteAddOnCommand(
@@ -30,16 +35,34 @@ def _pprint(d):
 	return
 
 
-def _toNative(elements: list):
-	"""Return a native (original Archicad-Python connection) element list with their appropiate types."""
+def _toNative(elements):
+	"""Return a native (original Archicad-Python connection) element list with their appropiate types.
+
+	Args:
+		elements: List of elements or ElementCollection instance
+	"""
+	elements = _ensure_elem_list(elements)
 	return [
 		act.ElementIdArrayItem(act.ElementId(item["elementId"]["guid"]))
 		for item in elements
 	]
 
 
-def getPropValues(*, builtin: str = None, propGUID: str = None, elements: dict) -> list:
-	"""Get Properties with the orginal Archicad-Python connection."""
+def getPropValues(
+	*,
+	builtin: str = None,
+	propGUID: str = None,
+	elements: "ElementCollection" | List[Dict[str, str]],
+) -> list:
+	"""Get Properties with the original Archicad-Python connection.
+
+	Args:
+		builtin: Built-in property name
+		propGUID: Property GUID
+		elements: List of elements or ElementCollection instance
+	"""
+	elements = _ensure_elem_list(elements)
+
 	if builtin and (propGUID is None):
 		# ... except for built-ins
 		return _getPropValues(builtin=builtin, elements=elements)
@@ -57,10 +80,23 @@ def getPropValues(*, builtin: str = None, propGUID: str = None, elements: dict) 
 	return ret_values
 
 
-def _getPropValues(*, builtin: str = None, propGUID: str = None, elements: dict ) -> list:  # fmt: skip
+def _getPropValues(
+	*,
+	builtin: str = None,
+	propGUID: str = None,
+	elements: "ElementCollection" | List[Dict[str, str]],
+) -> list:
 	"""Get Properties with Tapir. This is now only used for builtin properties. \n
 	It has the severe backdraw that there are no type hints and all values are stringified.
-	See also: https://github.com/ENZYME-APD/tapir-archicad-automation/issues/285"""
+	See also: https://github.com/ENZYME-APD/tapir-archicad-automation/issues/285
+
+	Args:
+		builtin: Built-in property name
+		propGUID: Property GUID
+		elements: List of elements or ElementCollection instance
+	"""
+	elements = _ensure_elem_list(elements)
+
 	if builtin and (propGUID is None):
 		propGUID = str(acu.GetBuiltInPropertyId(builtin).guid)
 	json_ = tapir.GetPropertyValuesOfElements(elements, [propGUID])[
@@ -80,7 +116,16 @@ def _getPropValues(*, builtin: str = None, propGUID: str = None, elements: dict 
 	return ret_values
 
 
-def getDetails(filter: Filter, elements: dict) -> list:
+def getDetails(
+	filter: Filter, elements: "ElementCollection" | List[Dict[str, str]]
+) -> list:
+	"""Get element details.
+
+	Args:
+		filter: Filter type to apply
+		elements: List of elements or ElementCollection instance
+	"""
+	elements = _ensure_elem_list(elements)
 	json_ = tapir.GetDetailsOfElements(elements)["detailsOfElements"]
 	ret_values = []
 	if filter == Filter.ELEMENT_TYPE:
@@ -91,7 +136,16 @@ def getDetails(filter: Filter, elements: dict) -> list:
 	return ret_values
 
 
-def getGeometry(filter: Filter, elements: dict) -> list:
+def getGeometry(
+	filter: Filter, elements: "ElementCollection" | List[Dict[str, str]]
+) -> list:
+	"""Get geometric properties of elements.
+
+	Args:
+		filter: Filter type to apply (HEIGHT, LENGTH)
+		elements: List of elements or ElementCollection instance
+	"""
+	elements = _ensure_elem_list(elements)
 	ret_values = []
 	details = tapir.GetDetailsOfElements(elements)["detailsOfElements"]
 	if filter == Filter.HEIGHT:
@@ -123,8 +177,13 @@ def getGeometry(filter: Filter, elements: dict) -> list:
 	return ret_values
 
 
-def getBBoxSize(elements: dict) -> list:
-	"""Gets the size of the fitted Bounding Box of the elements."""
+def getBBoxSize(elements: "ElementCollection" | List[Dict[str, str]]) -> list:
+	"""Gets the size of the fitted Bounding Box of the elements.
+
+	Args:
+		elements: List of elements or ElementCollection instance
+	"""
+	elements = _ensure_elem_list(elements)
 	ret_values = []
 	bboxes_raw = tapir.Get3DBoundingBoxes(elements)
 	for i, item in enumerate(bboxes_raw["boundingBoxes3D"]):
