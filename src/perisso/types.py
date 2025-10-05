@@ -12,9 +12,9 @@ class Vector:
 		"""Initialize a vector with x, y and optionally z coordinates.
 
 		Args:
-		    x: X coordinate
-		    y: Y coordinate
-		    z: Z coordinate (optional, makes it 3D if provided)
+			x: X coordinate
+			y: Y coordinate
+			z: Z coordinate (optional, makes it 3D if provided)
 		"""
 		self.x = float(x)
 		self.y = float(y)
@@ -328,9 +328,9 @@ class Coordinate:
 		"""Initialize a coordinate with x, y and optionally z values.
 
 		Args:
-		    x: X coordinate
-		    y: Y coordinate
-		    z: Z coordinate (optional, makes it 3D if provided)
+			x: X coordinate
+			y: Y coordinate
+			z: Z coordinate (optional, makes it 3D if provided)
 		"""
 		self.x = float(x)
 		self.y = float(y)
@@ -378,12 +378,12 @@ class Coordinate:
 				(self.x + other.x) / 2, (self.y + other.y) / 2, (self_z + other_z) / 2
 			)
 
-	def translate(self, vector: "Vector") -> "Coordinate":
+	def translate(self, vector: Vector | tuple) -> "Coordinate":
 		"""Translate this coordinate by a vector."""
 		from .types import Vector
 
-		if not isinstance(vector, Vector):
-			raise TypeError("Can only translate by a Vector")
+		if isinstance(vector, tuple):
+			vector = Vector(vector[0], vector[1])
 
 		if self.is_2d and vector.is_2d:
 			return Coordinate(self.x + vector.x, self.y + vector.y)
@@ -393,7 +393,7 @@ class Coordinate:
 			vector_z = vector.z if vector.is_3d else 0
 			return Coordinate(self.x + vector.x, self.y + vector.y, self_z + vector_z)
 
-	def vector_to(self, other: "Coordinate") -> "Vector":
+	def vector_to(self, other: "Coordinate") -> Vector:
 		"""Create a vector from this coordinate to another coordinate."""
 		from .types import Vector
 
@@ -1014,7 +1014,7 @@ class Polyline:
 	def rectangle(
 		cls, corner1: Union[Coordinate, tuple], corner2: Union[Coordinate, tuple]
 	) -> "Polyline":
-		"""Create a rectangular polyline from two opposite corners."""
+		"""Creates a rectangular polyline from two opposite corners."""
 		if isinstance(corner1, (list, tuple)):
 			corner1 = Coordinate(corner1[0], corner1[1])
 		if isinstance(corner2, (list, tuple)):
@@ -1030,10 +1030,28 @@ class Polyline:
 		return cls(coordinates, is_closed=True)
 
 	@classmethod
+	def circle(cls, center: Union[Coordinate, tuple], radius: float) -> "Polyline":
+		"""Creates a circle with a given radius."""
+		if isinstance(center, (list, tuple)):
+			center = Coordinate(center[0], center[1])
+
+		node1 = center.translate((-radius, 0))
+		node2 = center.translate((radius, 0))
+
+		coordinates = [node1, node2, node1]
+
+		arcs = [
+			{"begIndex": 0, "endIndex": 1, "arcAngle": math.pi},
+			{"begIndex": 1, "endIndex": 2, "arcAngle": math.pi},
+		]
+
+		return cls(coordinates, arcs, is_closed=True)
+
+	@classmethod
 	def circle_approximation(
 		cls, center: Union[Coordinate, tuple], radius: float, segments: int = 16
 	) -> "Polyline":
-		"""Create a circular polyline approximation using line segments."""
+		"""Creates a circular polyline approximation using line segments, similar to the magic wand."""
 		if isinstance(center, (list, tuple)):
 			center = Coordinate(center[0], center[1])
 
@@ -1434,3 +1452,159 @@ class Color:
 		yield self.g
 		yield self.b
 		yield self.a
+
+
+class Polygon:
+	"""A polygon class that consists of an outline (Polyline) and any number of holes.
+
+	This consists out of:
+	- polygonCoordinates: List of 2D coordinates for the outline (minimum 3)
+	- polygonArcs: List of arc definitions for curved segments in the outline
+	- holes: List of hole definitions, each with their own coordinates and arcs
+	"""
+
+	def __init__(
+		self,
+		polygon_coordinates: list[Union[Coordinate, dict, tuple]],
+		polygon_arcs: list[dict] = None,
+		holes: list[dict] = None,
+	):
+		"""Initialize a polygon with outline coordinates, optional arcs, and optional holes.
+
+		Args:
+			polygon_coordinates: List of coordinates for the polygon outline (minimum 3)
+			polygon_arcs: Optional list of arc definitions for curved segments in outline
+			holes: Optional list of hole definitions, each containing polygonCoordinates and polygonArcs
+		"""
+		if len(polygon_coordinates) < 3:
+			raise ValueError(
+				f"Polygon must have at least 3 coordinates. You provided {len(polygon_coordinates)}."
+			)
+
+		# Create the outline as a closed polyline
+		self.outline = Polyline(polygon_coordinates, polygon_arcs or [], is_closed=True)
+
+		# Process holes
+		self.holes = []
+		if holes:
+			for hole_data in holes:
+				hole_coords = hole_data.get("polygonCoordinates", [])
+				hole_arcs = hole_data.get("polygonArcs", [])
+				if len(hole_coords) < 3:
+					raise ValueError(
+						f"Hole must have at least 3 coordinates. You provided {len(hole_coords)}"
+					)
+				hole_polyline = Polyline(hole_coords, hole_arcs, is_closed=True)
+				self.holes.append(hole_polyline)
+
+	@property
+	def polygon_coordinates(self) -> list[Coordinate]:
+		"""Get the polygon outline coordinates."""
+		return self.outline.coordinates
+
+	@property
+	def polygon_arcs(self) -> list[dict]:
+		"""Get the polygon outline arcs."""
+		return self.outline.arcs
+
+	@property
+	def has_arcs(self) -> bool:
+		"""Check if the polygon has any arcs in its outline or holes.
+
+		Returns:
+			bool: True if the polygon has arcs in its outline or any of its holes, False otherwise
+		"""
+		# Check if outline has arcs
+		if self.polygon_arcs:
+			return True
+
+		# Check if any holes have arcs
+		for hole in self.holes:
+			if hole.arcs:
+				return True
+
+		return False
+
+	@property
+	def vertex_count(self) -> int:
+		"""Get the number of vertices in the outline."""
+		return self.outline.vertex_count
+
+	@property
+	def hole_count(self) -> int:
+		"""Get the number of holes in the polygon."""
+		return len(self.holes)
+
+	def add_hole(
+		self,
+		hole_coordinates: list[Union[Coordinate, dict, tuple]],
+		hole_arcs: list[dict] = None,
+	):
+		"""Add a hole to the polygon.
+
+		Args:
+			hole_coordinates: List of coordinates for the hole (minimum 3)
+			hole_arcs: Optional list of arc definitions for curved segments in the hole
+		"""
+		if len(hole_coordinates) < 3:
+			raise ValueError("Hole must have at least 3 coordinates")
+
+		hole_polyline = Polyline(hole_coordinates, hole_arcs or [], is_closed=True)
+		self.holes.append(hole_polyline)
+
+	def get_hole(self, index: int) -> Polyline:
+		"""Get a hole by index."""
+		if index < 0 or index >= len(self.holes):
+			raise IndexError(f"Hole index {index} out of range")
+		return self.holes[index]
+
+	def remove_hole(self, index: int):
+		"""Remove a hole by index."""
+		if index < 0 or index >= len(self.holes):
+			raise IndexError(f"Hole index {index} out of range")
+		self.holes.pop(index)
+
+	def to_dict(self) -> dict:
+		"""Convert to dictionary representation matching Archicad JSON API format."""
+		result = {
+			"polygonCoordinates": [
+				coord.to_dict() for coord in self.polygon_coordinates
+			],
+		}
+
+		if self.polygon_arcs:
+			result["polygonArcs"] = self.polygon_arcs.copy()
+
+		if self.holes:
+			holes_data = []
+			for hole in self.holes:
+				hole_dict = {
+					"polygonCoordinates": [
+						coord.to_dict() for coord in hole.coordinates
+					]
+				}
+				if hole.arcs:
+					hole_dict["polygonArcs"] = hole.arcs.copy()
+				holes_data.append(hole_dict)
+			result["holes"] = holes_data
+
+		return result
+
+	@classmethod
+	def from_dict(cls, data: dict) -> "Polygon":
+		"""Create polygon from dictionary (Archicad JSON API format)."""
+		polygon_coords = data.get("polygonCoordinates", [])
+		polygon_arcs = data.get("polygonArcs", [])
+		holes_data = data.get("holes", [])
+
+		return cls(polygon_coords, polygon_arcs, holes_data)
+
+	def __str__(self) -> str:
+		"""Simple string representation."""
+		hole_str = f", {len(self.holes)} holes" if self.holes else ""
+		arc_str = f", {len(self.polygon_arcs)} arcs" if self.polygon_arcs else ""
+		return f"Polygon({len(self.polygon_coordinates)} vertices{arc_str}{hole_str})"
+
+	def __repr__(self) -> str:
+		"""Detailed string representation."""
+		return f"Polygon(outline={self.outline}, holes={self.holes})"
