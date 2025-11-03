@@ -1690,12 +1690,17 @@ class TapirCommands:
 
 	# endregion
 	# region 	Issue Management Commands
-	def CreateIssue(self, name: str, parentIssueId: str, tagText: str = None) -> dict:
+	def CreateIssue(
+		self,
+		name: str,
+		parentIssueId: str = "00000000-0000-0000-0000-000000000000",
+		tagText: str = None,
+	) -> dict:
 		"""Creates a new issue.
 
 		Args:
-			name (`str`): The name of the issue.
-			parentIssueId (`str`): The identifier of an issue.
+			name (*`str`): The name of the issue.
+			parentIssueId (`str`): The GUID of an existing issue to nest the issue into.
 			tagText (`str`): Tag text of the issue, optional.
 		"""
 		name_ = inspect.currentframe().f_code.co_name
@@ -1712,10 +1717,11 @@ class TapirCommands:
 		params = {"issueId": {"guid": issueId}, "acceptAllElements": acceptAllElements}
 		return self._run(name_, params)
 
-	def GetIssues(self) -> Dict[str, Any]:
-		"""Retrieves information about existing issues."""
+	def GetIssues(self) -> List[Dict]:
+		"""Retrieves information about existing issues.\n
+		This command has no arguments."""
 		name_ = inspect.currentframe().f_code.co_name
-		return self._run(name_)
+		return self._run(name_)["issues"]
 
 	def AddCommentToIssue(
 		self, issueId, text: str, author: str = "", status: str = "Unknown"
@@ -1746,12 +1752,26 @@ class TapirCommands:
 		return self._run(name_, params)
 
 	def GetElementsAttachedToIssue(
-		self, issueId: str, elements: "ElementCollection" | List[Dict[str, str]]
-	) -> Dict[str, Any]:
-		"""Retrieves attached elements of the specified issue, filtered by attachment type."""
+		self,
+		issueId: str,
+		type: Literal["Creation", "Highlight", "Deletion", "Modification"],
+	) -> List[str]:
+		"""Retrieves attached elements of the specified issue, filtered by attachment type.
+
+		Args:
+			issueID (*`str`): The GUID of the Issue.
+			type (*`Literal`): The attachment type of the elements you want to retrieve.
+
+		Returns:
+			Gives a back a list with GUIDs of the elements associated to the issue.
+		"""
 		name_ = inspect.currentframe().f_code.co_name
-		params = {"issueId": {"guid": issueId}, "elements": _ensure_elem_list(elements)}
-		return self._run(name_, params)
+		params = {"issueId": {"guid": issueId}, "type": type}
+		_elem = self._run(name_, params)["elements"]
+		guids = []
+		for e in _elem:
+			guids.append(e["elementId"]["guid"])
+		return guids
 
 	def ExportIssuesToBCF(
 		self,
