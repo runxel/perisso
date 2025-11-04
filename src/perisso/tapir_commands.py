@@ -1403,7 +1403,24 @@ class TapirCommands:
 
 	# endregion
 	# region 	Attribute Commands
-	def GetAttributesByType(self, attributeType: str | AttrType) -> Dict[str, Any]:
+	def GetAttributesByType(
+		self,
+		attributeType: Literal[
+			"Layer",
+			"Line",
+			"Fill",
+			"Composite",
+			"Surface",
+			"LayerCombination",
+			"ZoneCategory",
+			"Profile",
+			"PenTable",
+			"MEPSystem",
+			"OperationProfile",
+			"BuildingMaterial",
+		]
+		| AttrType,
+	) -> Dict[str, Any]:
 		"""Returns the details of every attribute of the given type."""
 		name_ = inspect.currentframe().f_code.co_name
 		if isinstance(attributeType, AttrType):
