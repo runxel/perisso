@@ -3,7 +3,7 @@
 from .core import perisso
 from .tapir_commands import tapir
 from .enums import Filter, ElType, AttrType, PropertyDataType, ProjectInfo
-from .types import Vector, Coordinate, Arc, Polyline, Polygon, Color
+from .ptypes import Vector, Coordinate, Arc, Polyline, Polygon, Color, Layer
 
 
 __all__ = [
@@ -20,4 +20,5 @@ __all__ = [
 	"Polyline",
 	"Polygon",
 	"Color",
+	"Layer",
 ]

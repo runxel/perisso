@@ -1,4 +1,4 @@
-from .types import Coordinate, Arc  # noqa: F401
+from .ptypes import Coordinate, Arc  # noqa: F401
 
 
 def polygon_centroid(coordinates: list[Coordinate]) -> Coordinate:

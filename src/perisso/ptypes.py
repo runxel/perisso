@@ -1,6 +1,7 @@
 from typing import Union, Iterator, Tuple
 import math
 import random
+from .guid import _is_guid
 
 
 class Vector:
@@ -1318,7 +1319,18 @@ class Color:
 			result["a"] = self.a
 		return result
 
-	def with_alpha(self, alpha: Union[int, float]) -> "Color":
+	def to_dict_float(self, include_alpha: bool = True) -> dict:
+		"""Convert to dictionary with float values."""
+		result = {
+			"red": self.r / 255.0,
+			"green": self.g / 255.0,
+			"blue": self.b / 255.0,
+		}
+		if include_alpha:
+			result["alpha"] = self.a / 255.0
+		return result
+
+	def with_alpha(self, alpha: int | float) -> "Color":
 		"""Return a new color with different alpha value."""
 		new_color = Color(self.r, self.g, self.b, self.a)
 		if isinstance(alpha, float):
@@ -1608,3 +1620,113 @@ class Polygon:
 	def __repr__(self) -> str:
 		"""Detailed string representation."""
 		return f"Polygon(outline={self.outline}, holes={self.holes})"
+
+
+class Layer:
+	"""A Layer class for organizing elements in Archicad.
+
+	Layers help organize building elements and control their visibility,
+	locking state, and display properties.
+	"""
+
+	def __init__(self, name: str) -> None:
+		"""Initialize a Layer.
+
+		Args:
+			name: The name of the layer
+		"""
+		self.name = name
+		self.guid: str | None = None
+		self.index: str | None = None
+		self.isHidden: bool = False
+		self.isLocked: bool = False
+		self.isWireframe: bool = False
+		self.intersectionGroupNr: int = -1
+
+	def fetch_guid(self) -> str:
+		"""Fetches and stores the GUID for this Layer from Archicad.\n
+		The layer must exist!
+
+		Returns:
+			str: The GUID of the layer.
+
+		Raises:
+			ValueError: If the layer does not exist.
+		"""
+		from .helper import fetch_attribute_guid
+		from .enums import AttrType
+
+		self.guid = fetch_attribute_guid(AttrType.LAYER, self.name)
+		return self.guid
+
+	def to_dict(self) -> dict:
+		"""Convert to dictionary representation."""
+		result = {
+			"name": self.name,
+			"isHidden": self.isHidden,
+			"isLocked": self.isLocked,
+			"isWireframe": self.isWireframe,
+			"intersectionGroupNr": self.intersectionGroupNr,
+		}
+
+		if self.guid is not None:
+			if _is_guid(self.guid):
+				result["attributeId"] = {"guid": self.guid}
+
+		if self.index is not None:
+			result["index"] = self.index
+
+		return result
+
+	@classmethod
+	def from_dict(cls, data: dict) -> "Layer":
+		"""Create layer from dictionary."""
+		layer = cls(data["name"])
+
+		if "guid" in data:
+			layer.guid = data["guid"]
+		if "index" in data:
+			layer.index = data["index"]
+		if "isHidden" in data:
+			layer.isHidden = data["isHidden"]
+		if "isLocked" in data:
+			layer.isLocked = data["isLocked"]
+		if "isWireframe" in data:
+			layer.isWireframe = data["isWireframe"]
+		if "intersectionGroupNr" in data:
+			layer.intersectionGroupNr = data["intersectionGroupNr"]
+
+		return layer
+
+	def __str__(self) -> str:
+		"""Simple string representation."""
+		state_parts = []
+		if self.isHidden:
+			state_parts.append("hidden")
+		if self.isLocked:
+			state_parts.append("locked")
+		if self.isWireframe:
+			state_parts.append("wireframe")
+
+		state_str = f" ({', '.join(state_parts)})" if state_parts else ""
+		index_str = f" [index: {self.index}]" if self.index is not None else ""
+
+		return f"Layer: '{self.name}'{index_str}{state_str}"
+
+	def __repr__(self) -> str:
+		"""Detailed string representation."""
+		return f"Layer(name='{self.name}', guid='{self.guid}', index={self.index}, isHidden={self.isHidden}, isLocked={self.isLocked}, isWireframe={self.isWireframe}, intersectionGroupNr={self.intersectionGroupNr})"
+
+	def __eq__(self, other) -> bool:
+		"""Check equality with another layer (based on GUID)."""
+		if not isinstance(other, Layer):
+			return False
+		return self.guid == other.guid
+
+	def __ne__(self, other) -> bool:
+		"""Check inequality with another layer."""
+		return not self.__eq__(other)
+
+	def __hash__(self) -> int:
+		"""Hash support for layers (based on GUID)."""
+		return hash(self.guid)

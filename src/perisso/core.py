@@ -13,7 +13,7 @@ acu: Utilities = conn.utilities
 act: Types = conn.types
 
 
-def perisso(*, selection=False):
+def perisso(*, selection=False) -> ElementCollection:
 	"""Get all elements as an ElementCollection instance.
 
 	Arguments:

@@ -1,5 +1,8 @@
+from __future__ import annotations
+
 import os
-import inspect
+from inspect import currentframe
+from types import FrameType
 from typing import Dict, List, Any, Literal, TYPE_CHECKING
 from pathlib import Path
 
@@ -9,13 +12,21 @@ if TYPE_CHECKING:
 
 from .connection import acc, act
 from .enums import ElType, AttrType, ProjectInfo
-from .types import Vector, Coordinate, Polyline, Polygon, Color
+from .ptypes import Vector, Coordinate, Polyline, Polygon, Color, Layer
 from .type_utils import polygon_centroid
 from .helper import zip_repeat_last, _printcol
 from .guid import _is_guid
 
 
-def _ensure_elem_list(elements):
+def func_name(frame: FrameType | None) -> str:
+	"""Returns the name of the current function from its frame."""
+	# unrealistic for it to ever happen
+	# just to make the type checker happy!
+	assert frame is not None
+	return frame.f_code.co_name
+
+
+def _ensure_elem_list(elements) -> List[Dict[str, Any]]:
 	"""Helper function to return the list, not an object."""
 	# Import here to avoid circular imports
 	from .collection import ElementCollection
@@ -26,7 +37,9 @@ def _ensure_elem_list(elements):
 
 
 def _validate_path(
-	path: str | Path, file_ending: str = None, io_op: Literal[None, "r", "w"] = None
+	path: str | Path,
+	file_ending: str | None = None,
+	io_op: Literal[None, "r", "w"] = None,
 ) -> str:
 	"""Validates a Path and returns the normalized string path.
 
@@ -91,7 +104,7 @@ class TapirCommands:
 		self.acc = acc
 		self.act = act
 
-	def _run(self, command: str, params: any = None):
+	def _run(self, command: str, params: Dict | None = None):
 		"""Runs the actual command with optional parameters."""
 		if params:
 			return self.acc.ExecuteAddOnCommand(
@@ -140,30 +153,12 @@ class TapirCommands:
 			f"Attribute '{nameOrGuid}' not found in {attr_type_str} attributes"
 		)
 
-	def _find_guid_of_attr(self, attributeType: str | AttrType, name: str) -> str:
-		"""Finds the GUID of an Attribute. If not found raises a ValueError."""
-		attr_response = self.GetAttributesByType(attributeType)
-		attributes = attr_response.get("attributes", [])
-
-		# Search by name
-		for attr in attributes:
-			if attr["name"] == name:
-				return attr["attributeId"]["guid"]
-
-		# If not found, raise an error
-		attr_type_str = (
-			attributeType.value
-			if isinstance(attributeType, AttrType)
-			else attributeType
-		)
-		raise ValueError(f"Attribute '{name}' not found in {attr_type_str} attributes")
-
 	# endregion
 	# region 	Application Commands
 	def GetAddOnVersion(self) -> str:
 		"""Retrieves the version of the installed Tapir Add-On."""
 		# OG Tapir
-		name_ = inspect.currentframe().f_code.co_name
+		name_: str = func_name(currentframe())
 		return self._run(name_)["version"]
 
 	def GetTapirVersion(self) -> str:
@@ -173,29 +168,29 @@ class TapirCommands:
 
 	def GetArchicadLocation(self) -> str:
 		"""Retrieves the location of the currently running Archicad executable."""
-		name_ = inspect.currentframe().f_code.co_name
+		name_: str = func_name(currentframe())
 		return self._run(name_)["archicadLocation"]
 
 	def QuitArchicad(self) -> dict:
 		"""Performs a quit operation on the currently running Archicad instance."""
-		name_ = inspect.currentframe().f_code.co_name
+		name_: str = func_name(currentframe())
 		return self._run(name_)
 
 	def GetCurrentWindowType(self) -> str:
 		"""Returns the type of the current (active) window."""
-		name_ = inspect.currentframe().f_code.co_name
+		name_: str = func_name(currentframe())
 		return self._run(name_)["currentWindowType"]
 
 	# endregion
 	# region 	Project Commands
 	def GetProjectInfo(self) -> dict:
 		"""Retrieves information about the currently loaded project."""
-		name_ = inspect.currentframe().f_code.co_name
+		name_: str = func_name(currentframe())
 		return self._run(name_)
 
 	def GetProjectInfoFields(self) -> dict:
 		"""Retrieves the names and values of all project info fields."""
-		name_ = inspect.currentframe().f_code.co_name
+		name_: str = func_name(currentframe())
 		return self._run(name_)
 
 	def SetProjectInfoField(
@@ -208,7 +203,7 @@ class TapirCommands:
 				or a `ProjectInfo`-class member (enum).
 			projectInfoValue (`str`): The new value of the project info field.
 		"""
-		name_ = inspect.currentframe().f_code.co_name
+		name_: str = func_name(currentframe())
 		if isinstance(projectInfoId, ProjectInfo):
 			projectInfoId = projectInfoId.value
 		params = {"projectInfoId": projectInfoId, "projectInfoValue": projectInfoValue}
@@ -216,11 +211,14 @@ class TapirCommands:
 
 	def GetStories(self) -> dict:
 		"""Retrieves information about the story structure of the project."""
-		name_ = inspect.currentframe().f_code.co_name
+		name_: str = func_name(currentframe())
 		return self._run(name_)
 
 	def SetStories(
-		self, names: list[str], levels: list[float], dispOnSections: list[bool] = None
+		self,
+		names: list[str],
+		levels: list[float],
+		dispOnSections: list[bool] | None = None,
 	) -> dict:
 		"""Sets the story structure of the project. \n
 		This means that the current structure will not be appended but replaced.
@@ -231,7 +229,7 @@ class TapirCommands:
 			dispOnSections (`bool`): Determines if story level lines should appear on sections and elevations.
 				Reverts to `True` if not specified.
 		"""
-		name_ = inspect.currentframe().f_code.co_name
+		name_: str = func_name(currentframe())
 
 		if dispOnSections is None:
 			dispOnSections = [True for _ in range(len(levels))]
@@ -249,20 +247,100 @@ class TapirCommands:
 	def GetHotlinks(self) -> dict:
 		"""Gets the file system locations (path) of the hotlink modules.
 		The hotlinks can have a tree hierarchy in the project."""
-		name_ = inspect.currentframe().f_code.co_name
+		name_: str = func_name(currentframe())
 		return self._run(name_)
 
 	def OpenProject(self, path: str | Path) -> dict:
 		"""Opens the given project."""
-		name_ = inspect.currentframe().f_code.co_name
+		name_: str = func_name(currentframe())
 		path = _validate_path(path, io_op="r")
 		params = {"projectFilePath": path}
 		return self._run(name_, params)
 
 	def GetGeoLocation(self) -> dict:
 		"""Gets the project's location details."""
-		name_ = inspect.currentframe().f_code.co_name
+		name_: str = func_name(currentframe())
 		return self._run(name_)
+
+	def SetGeoLocation(
+		self,
+		long: float,
+		lat: float,
+		alt: float,
+		north: float,
+		eastings: float,
+		northings: float,
+		elevation: float,
+		crsName: str,
+		crsDescription: str,
+		geodeticDatum: str,
+		verticalDatum: str,
+		mapProjection: str,
+		mapZone: str,
+	) -> dict:
+		"""Sets the project's location details.
+
+		MinVer: 1.2.9"""
+		name_: str = func_name(currentframe())
+		params = {
+			"projectLocation": {},
+			"surveyPoint": {"position": {}, "geoReferencingParameters": {}},
+		}
+		if long:
+			params["projectLocation"]["longitude"] = long
+		if lat:
+			params["projectLocation"]["latitude"] = lat
+		if alt:
+			params["projectLocation"]["altitude"] = alt
+		if north:
+			params["projectLocation"]["north"] = north
+		if eastings:
+			params["surveyPoint"]["position"]["eastings"] = eastings
+		if northings:
+			params["surveyPoint"]["position"]["northings"] = northings
+		if elevation:
+			params["surveyPoint"]["position"]["elevation"] = elevation
+		if crsName:
+			params["surveyPoint"]["geoReferencingParameters"]["crsName"] = crsName
+		if crsDescription:
+			params["surveyPoint"]["geoReferencingParameters"]["description"] = (
+				crsDescription
+			)
+		if geodeticDatum:
+			params["surveyPoint"]["geoReferencingParameters"]["geodeticDatum"] = (
+				geodeticDatum
+			)
+		if verticalDatum:
+			params["surveyPoint"]["geoReferencingParameters"]["verticalDatum"] = (
+				verticalDatum
+			)
+		if mapProjection:
+			params["surveyPoint"]["geoReferencingParameters"]["mapProjection"] = (
+				mapProjection
+			)
+		if mapZone:
+			params["surveyPoint"]["geoReferencingParameters"]["mapZone"] = mapZone
+
+		return self._run(name_, params)
+
+	def IFCFileOperation(
+		self,
+		method: Literal["save", "merge", "open"],
+		path: str | Path,
+		fileType: Literal["ifc", "ifcxml", "ifczip", "ifcxmlzip"] = "ifc",
+	) -> dict:
+		"""Executes an IFC file operation.
+
+		Args:
+			method (*`str`): The file operation method to use.
+			path (*`str`): The target IFC file to use.
+			fileType (*`str`): The type of the IFC file. The default is 'ifc'.
+
+		MinVer: 1.2.6"""
+		name_: str = func_name(currentframe())
+		path = _validate_path(path, io_op="r")
+		params = {"method": method, "ifcFilePath": path, "fileType": fileType}
+		return self._run(name_, params)
 
 	# endregion
 	# region 	Element Commands
@@ -279,7 +357,7 @@ class TapirCommands:
 		subElem: "ElementCollection" | List[Dict[str, str]] = None,
 	) -> dict:
 		"""Modifies the current selection of elements in Archicad by Adding or Removing a number of elements from it."""
-		name_ = inspect.currentframe().f_code.co_name
+		name_: str = func_name(currentframe())
 		addElem = _ensure_elem_list(addElem)
 		subElem = _ensure_elem_list(subElem)
 		params = {
@@ -292,7 +370,7 @@ class TapirCommands:
 		self, elements: "ElementCollection" | List[Dict[str, str]]
 	) -> dict:
 		"""Get details of given elements."""
-		name_ = inspect.currentframe().f_code.co_name
+		name_: str = func_name(currentframe())
 		params = {"elements": _ensure_elem_list(elements)}
 		return self._run(name_, params)
 
@@ -314,7 +392,7 @@ class TapirCommands:
 			drawIndex: Optional drawing order index
 			typeSpecificDetails: Optional type-specific details (currently: Only Walls supported)
 		"""
-		name_ = inspect.currentframe().f_code.co_name
+		name_: str = func_name(currentframe())
 		elements = _ensure_elem_list(elements)
 
 		# Build details dict only with provided parameters
@@ -346,7 +424,7 @@ class TapirCommands:
 		self, elements: "ElementCollection" | List[Dict[str, str]]
 	) -> Dict[str, any]:
 		"""Get 3D bounding boxes of elements."""
-		name_ = inspect.currentframe().f_code.co_name
+		name_: str = func_name(currentframe())
 		params = {"elements": _ensure_elem_list(elements)}
 		return self._run(name_, params)
 
@@ -354,7 +432,7 @@ class TapirCommands:
 		self, elements: "ElementCollection" | List[Dict[str, str]]
 	) -> dict:
 		"""Gets the subelements of the given hierarchical elements."""
-		name_ = inspect.currentframe().f_code.co_name
+		name_: str = func_name(currentframe())
 		params = {"elements": _ensure_elem_list(elements)}
 		return self._run(name_, params)
 
@@ -364,7 +442,7 @@ class TapirCommands:
 		connectedElementType: ElType | str,
 	) -> dict:
 		"""Gets the subelements of the given hierarchical elements."""
-		name_ = inspect.currentframe().f_code.co_name
+		name_: str = func_name(currentframe())
 		if isinstance(connectedElementType, ElType):
 			connElem = connectedElementType.value
 		else:
@@ -380,7 +458,7 @@ class TapirCommands:
 		zone: "ElementCollection" | Dict[str, str],
 	) -> Dict:
 		"""Gets the boundaries of the given Zone (connected elements, neighbour zones, etc.)."""
-		name_ = inspect.currentframe().f_code.co_name
+		name_: str = func_name(currentframe())
 		el = _ensure_elem_list(zone)
 		params = {"zoneElementId": el["elementId"]}
 		return self._run(name_, params)
@@ -405,7 +483,7 @@ class TapirCommands:
 			surfaceTolerance (`float`): Intersection body surface area greater than this value will be
 			    considered as a collision. Default value is 0.001.
 		"""
-		name_ = inspect.currentframe().f_code.co_name
+		name_: str = func_name(currentframe())
 		params = {
 			"elementsGroup1": _ensure_elem_list(elementGroup1),
 			"elementsGroup2": _ensure_elem_list(elementGroup2),
@@ -432,7 +510,7 @@ class TapirCommands:
 			mutedcolor (`Color`): A Color to be used on the non-highlighted elements. Optional.
 			wirefame (`bool`): Switch non-highlighted elements in the 3D window to wireframe. Optional.
 		"""
-		name_ = inspect.currentframe().f_code.co_name
+		name_: str = func_name(currentframe())
 
 		elements = _ensure_elem_list(elements)
 
@@ -478,7 +556,7 @@ class TapirCommands:
 		copy: bool = False,
 	):
 		"""Moves elements with a given vector."""
-		name_ = inspect.currentframe().f_code.co_name
+		name_: str = func_name(currentframe())
 		elements = _ensure_elem_list(elements)
 		params = {
 			"elementsWithMoveVectors": [
@@ -497,7 +575,7 @@ class TapirCommands:
 	) -> dict:
 		"""Deletes elements.
 		Tapir: 1.2.1"""
-		name_ = inspect.currentframe().f_code.co_name
+		name_: str = func_name(currentframe())
 		params = {"elements": _ensure_elem_list(elements)}
 		return self._run(name_, params)
 
@@ -505,7 +583,11 @@ class TapirCommands:
 		self, elements: "ElementCollection" | List[Dict[str, str]]
 	) -> dict:
 		"""Gets all the GDL parameters (name, type, value) of the given elements."""
-		name_ = inspect.currentframe().f_code.co_name
+		# significantly improved in 1.2.7
+		# with displayName, isLocked and the possibleValues. In case of string parameter the
+		# possibleValues can be an array of string. In case of numeric parameter the
+		# possibleValues can be array of values or limits (for example "greater than 2.0") etc.
+		name_: str = func_name(currentframe())
 		params = {"elements": _ensure_elem_list(elements)}
 		return self._run(name_, params)
 
@@ -522,7 +604,10 @@ class TapirCommands:
 			   tuples where the first item is the name of the GDL Parameter as a string and the second item is the value
 			   the parameter should be assigned to.
 		"""
-		name_ = inspect.currentframe().f_code.co_name
+		# significantly improved in 1.2.7
+		# now it needs only a name-value pair to change the value of the parameter with the given name,
+		# so no need to pass the type and other inputs.
+		name_: str = func_name(currentframe())
 
 		elements = _ensure_elem_list(elements)
 
@@ -576,7 +661,7 @@ class TapirCommands:
 				a ready made List of Dicts, like `[{'classificationSystemId': {'guid': 'B6636241-937D-234D-902F-2D30E4BD0FB8'}, ...]`
 			resolve (`bool`): If True, returns human-readable names instead of GUIDs
 		"""
-		name_ = inspect.currentframe().f_code.co_name
+		name_: str = func_name(currentframe())
 
 		if classificationSystemIds is None:
 			# means we check for all available Classifications
@@ -685,7 +770,7 @@ class TapirCommands:
 
 		Either provide a full `classificationId` dict or the system and item ID.
 		Those can be either GUIDS or real-named strings."""
-		name_ = inspect.currentframe().f_code.co_name
+		name_: str = func_name(currentframe())
 
 		elements = _ensure_elem_list(elements)
 
@@ -729,7 +814,7 @@ class TapirCommands:
 					actcsid = self.act.ClassificationSystemId(system_guid)
 					tree = self.acc.GetAllClassificationsInSystem(actcsid)
 
-					def _find_guid_by_name(tree: list, target_name: str) -> str:
+					def _find_guid_by_name(tree: list, target_name: str) -> str | None:
 						"""Recursively search for classification item GUID by name."""
 						for item in tree:
 							if isinstance(item, self.act.ClassificationItemArrayItem):
@@ -771,7 +856,7 @@ class TapirCommands:
 	# region 	Create Elements
 	def CreateColumns(self, coors: Coordinate | list[Coordinate]) -> dict:
 		"""Creates Column elements based on the given parameters."""
-		name_ = inspect.currentframe().f_code.co_name
+		name_: str = func_name(currentframe())
 		if isinstance(coors, list):
 			coors = [coors]
 		params = {
@@ -794,7 +879,7 @@ class TapirCommands:
 
 		Note: All polylines will be automatically closed for slab creation.
 		"""
-		name_ = inspect.currentframe().f_code.co_name
+		name_: str = func_name(currentframe())
 
 		# Handle single Polyline or list of Polylines
 		if isinstance(polylines, Polyline):
@@ -858,7 +943,7 @@ class TapirCommands:
 		stampPosition: Coordinate = None,
 	) -> dict:
 		"""Creates Zone elements based on the given parameters."""
-		name_ = inspect.currentframe().f_code.co_name
+		name_: str = func_name(currentframe())
 
 		if stampPosition is None:
 			if geometryType == "manual":
@@ -934,7 +1019,7 @@ class TapirCommands:
 		self, polylines: List[Polyline] | Polyline, floorInd: int = None
 	) -> dict:
 		"""Creates Polyline elements based on the given parameters."""
-		name_ = inspect.currentframe().f_code.co_name
+		name_: str = func_name(currentframe())
 
 		# Handle single Polyline or list of Polylines
 		if isinstance(polylines, Polyline):
@@ -965,7 +1050,7 @@ class TapirCommands:
 
 		Dimensions are optional.
 		"""
-		name_ = inspect.currentframe().f_code.co_name
+		name_: str = func_name(currentframe())
 
 		if not isinstance(objName, list):
 			objName = [objName]
@@ -1006,9 +1091,9 @@ class TapirCommands:
 		skirtType: Literal[
 			"SurfaceOnlyWithoutSkirt", "WithSkirt", "SolidBodyWithSkirt"
 		],
-		skirtLevel: float = None,
-		story: int = None,
-		sublines: list[Coordinate] = None,
+		skirtLevel: float | None = None,
+		story: int | None = None,
+		sublines: list[Coordinate] | None = None,
 	) -> dict:
 		"""Creates Meshes based on the given parameters.
 
@@ -1018,7 +1103,7 @@ class TapirCommands:
 			skirtLevel: Skirt height (optional).
 			sublines: The leveling sublines inside the polygon of the mesh. Just an unordered list of 3D-Coordinates
 		"""
-		name_ = inspect.currentframe().f_code.co_name
+		name_: str = func_name(currentframe())
 
 		params = {
 			"meshesData": [
@@ -1044,6 +1129,117 @@ class TapirCommands:
 
 		return self._run(name_, params)
 
+	def CreateLabels(self, elements: "ElementCollection", text: str = "") -> dict:
+		"""Creates linked Labels.\n
+		Please not that the current label style is used.
+		If you need a certain label, it needs to be set with "`ApplyFavoritesToElementDefaults`" beforehand.
+
+		Args:
+			elements (*`ElementCollection`): The elements to which the labels should be linked.
+			text (*`str`): The text to display on the labels. This is only used, when the
+				current label is set to the "Text / Autotext" style. Otherwise this is ignored.
+				It can contain Property references in the form of `<PROPERTY-00000000-0000-0000-0000-000000000000>`.
+				See https://appqhvdzwg8xn8ghcy6.teable.app/ for full list of GUIDs that can be used.
+
+		MinVer: 1.2.5"""
+		name_: str = func_name(currentframe())
+		params = {
+			"labelsData": [
+				{
+					"parentElementId": el["elementId"],
+					"text": text,
+					# this does not seem to make a difference at the moment
+					"begCoordinate": {"x": 0, "y": 0},
+				}
+				for el in _ensure_elem_list(elements)
+			]
+		}
+		print(params)
+		return self._run(name_, params)
+		# TODO: parse return
+		# {'propertyValuesForElements': [{'propertyValues': [{'error': {'code': -2130312908, 'message': 'Not available or not evaluated property'}}, {'propertyValue': {'value': '1; -1; 2; 1; 2; 2; 4; 3'}}]}]}
+
+	def GetElementPreviewImage(
+		self,
+		elementID: "ElementCollection" | str,
+		imageType: Literal["2D", "Section", "3D"] = "3D",
+		format: Literal["png", "jpg"] = "png",
+		width: int = 128,
+		height: int = 128,
+	) -> str:
+		"""Returns the preview image of an element as base64 encoded string.\n
+		This does not show the actual geometry of the element, but rather a predefined image based on
+		the element type and the current view settings. So it can be used to get a quick
+		visual representation of an element, but it is not meant for detailed visualization or analysis.
+		MinVer: 1.2.7"""
+		name_: str = func_name(currentframe())
+		params = {
+			"elementId": {"guid": elementID}
+			if isinstance(elementID, str)
+			else {"guid": elementID["elementId"]["guid"]},
+			"imageType": imageType,
+			"format": format,
+			"width": width,
+			"height": height,
+		}
+		return self._run(name_, params)["previewImage"]
+
+	def GetRoomImage(
+		self,
+		zoneID: "ElementCollection" | str,
+		format: Literal["png", "jpg"] = "png",
+		width: int = 256,
+		height: int = 256,
+		offset: float = 0.001,
+		scale: float = 1 / 200,
+		backgroundColor: Color = Color(255, 255, 255, 0),
+	) -> str:
+		# TODO:
+		# zone will not be auto contained in image; there is dependency on the zone size, image size, and scale...
+		"""Returns the image of a room as base64 encoded string.
+		MinVer: 1.2.7"""
+		name_: str = func_name(currentframe())
+		params = {
+			"zoneId": {"guid": zoneID}
+			if isinstance(zoneID, str)
+			else {"guid": zoneID["elementId"]["guid"]},
+			"format": format,
+			"width": width,
+			"height": height,
+			"offset": offset,
+			"scale": scale,
+			"backgroundColor": backgroundColor.to_dict_float(include_alpha=False),
+		}
+		return self._run(name_, params)["roomImage"]
+
+	def SetElementNotificationClient(
+		self,
+		notifyOnNewElement: bool = True,
+		notifyOnModificationOfAnElement: bool = True,
+		notifyOnReservationChanges: bool = True,
+	) -> dict:
+		"""Sets up a new notification client to receive element events.
+		MinVer: 1.2.8"""
+		raise NotImplementedError("This method is not implemented yet.")
+		# TODO: we need to rework whole connection handling, to automatically have the port
+		name_: str = func_name(currentframe())
+		params = {
+			"host": "localhost",
+			"port": self.notification_port,
+			"notifyOnNewElement": notifyOnNewElement,
+			"notifyOnModificationOfAnElement": notifyOnModificationOfAnElement,
+			"notifyOnReservationChanges": notifyOnReservationChanges,
+		}
+		return self._run(name_, params)
+
+	def RemoveElementNotificationClient(self) -> dict:
+		"""Removes an element notification client.
+		MinVer: 1.2.8"""
+		raise NotImplementedError("This method is not implemented yet.")
+		name_: str = func_name(currentframe())
+		params = {"host": "localhost", "port": self.notification_port}
+		return self._run(name_, params)
+
 	# endregion
 	# region 	Favorites Commands
 	def GetFavoritesByType(self, elementType: ElType | str) -> List[str]:
@@ -1052,7 +1248,7 @@ class TapirCommands:
 		Args:
 			elementType (*`ElType`|`str`): The element type of the requested favorites.
 		"""
-		name_ = inspect.currentframe().f_code.co_name
+		name_: str = func_name(currentframe())
 		if isinstance(elementType, ElType):
 			et = elementType.value
 		else:
@@ -1060,9 +1256,29 @@ class TapirCommands:
 		params = {"elementType": et}
 		return self._run(name_, params)["favorites"]
 
+	def GetFavoritePreviewImage(
+		self,
+		favoriteName: str,
+		imageType: Literal["2D", "Section", "3D"] = "3D",
+		format: Literal["png", "jpg"] = "png",
+		width: int = 128,
+		height: int = 128,
+	) -> str:
+		"""Returns the preview image of the given favorite as base64 encoded image.
+		MinVer: 1.2.7"""
+		name_: str = func_name(currentframe())
+		params = {
+			"favorite": favoriteName,
+			"imageType": imageType,
+			"format": format,
+			"width": width,
+			"height": height,
+		}
+		return self._run(name_, params)["previewImage"]
+
 	def ApplyFavoritesToElementDefaults(self, favoriteNames: str) -> dict:
 		"""Apply the given favorites to their respective element tool defaults."""
-		name_ = inspect.currentframe().f_code.co_name
+		name_: str = func_name(currentframe())
 		params = {"favorites": [favoriteNames]}
 		return self._run(name_, params)
 
@@ -1072,7 +1288,7 @@ class TapirCommands:
 		favoriteNames: List[str],
 	) -> dict:
 		"""Create favorites from the given elements."""
-		name_ = inspect.currentframe().f_code.co_name
+		name_: str = func_name(currentframe())
 		elements = _ensure_elem_list(elements)
 		if isinstance(favoriteNames, str):
 			# make sure we get a list
@@ -1092,7 +1308,7 @@ class TapirCommands:
 	# region 	Property Commands
 	def GetAllProperties(self) -> dict:
 		"""Returns all user defined and built-in properties."""
-		name_ = inspect.currentframe().f_code.co_name
+		name_: str = func_name(currentframe())
 		return self._run(name_)
 
 	def GetPropertyValuesOfElements(
@@ -1110,7 +1326,7 @@ class TapirCommands:
 		Returns:
 			Dictionary containing the property values for the requested elements
 		"""
-		name_ = inspect.currentframe().f_code.co_name
+		name_: str = func_name(currentframe())
 		params = {
 			"elements": _ensure_elem_list(elements),
 			"properties": [{"propertyId": {"guid": pg}} for pg in propertyGUIDs],
@@ -1126,7 +1342,7 @@ class TapirCommands:
 		"""
 		Sets the property values of elements. It works for subelements of hierarchal elements also.
 		"""
-		name_ = inspect.currentframe().f_code.co_name
+		name_: str = func_name(currentframe())
 		elements = _ensure_elem_list(elements)
 		params = {
 			"elementPropertyValues": [
@@ -1148,7 +1364,7 @@ class TapirCommands:
 		"""
 		Returns the property values of the attributes for the given property.
 		"""
-		name_ = inspect.currentframe().f_code.co_name
+		name_: str = func_name(currentframe())
 		params = {
 			"attributeIds": [{"attributeId": {"guid": ag}} for ag in attributeGUIDs],
 			"properties": [{"propertyId": {"guid": pg}} for pg in propertyGUIDs],
@@ -1161,7 +1377,7 @@ class TapirCommands:
 		"""
 		Sets the property values of attributes.
 		"""
-		name_ = inspect.currentframe().f_code.co_name
+		name_: str = func_name(currentframe())
 		params = {
 			"attributePropertyValues": [
 				{
@@ -1189,7 +1405,7 @@ class TapirCommands:
 
 				Example: `["Materials", ("Structural", "Load-bearing elements"), {"name": "MEP"}]`
 		"""
-		name_ = inspect.currentframe().f_code.co_name
+		name_: str = func_name(currentframe())
 
 		# Normalize input to list of dicts
 		normalized_groups = []
@@ -1233,7 +1449,7 @@ class TapirCommands:
 		"""
 		Deletes the given Custom Property Groups.
 		"""
-		name_ = inspect.currentframe().f_code.co_name
+		name_: str = func_name(currentframe())
 		params = {
 			"propertyGroupIds": [
 				{"propertyGroupId": {"guid": pg}} for pg in propertyGUIDs
@@ -1247,7 +1463,7 @@ class TapirCommands:
 		*,
 		description: str = "",
 		group: str,
-		type: Literal[
+		proptype: Literal[
 			"number",
 			"integer",
 			"string",
@@ -1283,7 +1499,7 @@ class TapirCommands:
 			availability: The identifiers of classification items the new property is available for.
 			group: The property group defined by either its name or GUID.
 		"""
-		name_ = inspect.currentframe().f_code.co_name
+		name_: str = func_name(currentframe())
 
 		if defaultValue and expression:
 			raise ValueError(
@@ -1294,7 +1510,7 @@ class TapirCommands:
 			"propertyDefinition": {
 				"name": name,
 				"description": description,
-				"type": type,
+				"type": proptype,
 				"isEditable": isEditable,
 			}
 		}
@@ -1313,7 +1529,7 @@ class TapirCommands:
 		# Define enums
 		# NOTE:
 		# What does "nonlocalized" values mean in this context?...
-		if type == "singleEnum" or type == "multiEnum":
+		if proptype == "singleEnum" or proptype == "multiEnum":
 			_propDef["possibleEnumValues"] = {
 				[
 					{
@@ -1335,34 +1551,34 @@ class TapirCommands:
 				# it's not clear to me what "notAvailable" even means
 				_propDef["defaultValue"] = {
 					"basicDefaultValue": {
-						"type": type,
+						"type": proptype,
 						"status": defaultValue,
 					}
 				}
 			else:
 				if (
-					type == "numberlist"
-					or type == "integerList"
-					or type == "stringList"
-					or type == "booleanList"
-					or type == "lengthList"
-					or type == "areaList"
-					or type == "volumeList"
-					or type == "angleList"
+					proptype == "numberlist"
+					or proptype == "integerList"
+					or proptype == "stringList"
+					or proptype == "booleanList"
+					or proptype == "lengthList"
+					or proptype == "areaList"
+					or proptype == "volumeList"
+					or proptype == "angleList"
 				):
 					if not (isinstance(defaultValue, list)):
 						raise ValueError(
-							f"For {type=} the provided 'defaultValue' needs to be a list, not '{type(type)}'."
+							f"For {proptype=} the provided 'defaultValue' needs to be a list, not '{type(proptype)}'."
 						)
 
-				if type == "singleEnum":
+				if proptype == "singleEnum":
 					_defv = {
 						"type": "displayValue",
 						"displayValue": defaultValue,
 						# I have no clue what "nonlocalized values" are...
 						# "nonLocalizedValue": defaultValue,
 					}
-				elif type == "multiEnum":
+				elif proptype == "multiEnum":
 					_defv = [
 						{
 							"enumValueId": {
@@ -1379,7 +1595,7 @@ class TapirCommands:
 
 				_propDef["defaultValue"] = {
 					"basicDefaultValue": {
-						"type": type,
+						"type": proptype,
 						"status": "normal",
 						"value": _defv,
 					}
@@ -1395,7 +1611,7 @@ class TapirCommands:
 		"""
 		Deletes the given Custom Property Definitions.
 		"""
-		name_ = inspect.currentframe().f_code.co_name
+		name_: str = func_name(currentframe())
 		params = {
 			"propertyIds": [{"propertyId": {"guid": pg}} for pg in propertyGUIDs],
 		}
@@ -1422,25 +1638,51 @@ class TapirCommands:
 		| AttrType,
 	) -> Dict[str, Any]:
 		"""Returns the details of every attribute of the given type."""
-		name_ = inspect.currentframe().f_code.co_name
+		name_: str = func_name(currentframe())
 		if isinstance(attributeType, AttrType):
 			attributeType = attributeType.value
 		params = {"attributeType": attributeType}
 		return self._run(name_, params)
 
 	def CreateLayers(
-		self, layerData: list, overwriteExisting: bool = False
+		self, layers: List[Layer], overwriteExisting: bool = False
 	) -> Dict[str, Any]:
-		"""Creates Layers based on the given parameters."""
-		name_ = inspect.currentframe().f_code.co_name
-		params = {"layerDataArray": layerData, "overwriteExisting": overwriteExisting}
+		"""Creates Layers based on the given parameters.
+
+		Returns the list of the GUIDs
+
+		Args:
+			layers (*`Layer`): Layer data as a list. Use the provided "Layer" class from perisso.
+			overwriteExisting (`bool`): Overwrite the Layer if it exists with the same name, or if index is given with the same index. The default is false.
+		"""
+		name_: str = func_name(currentframe())
+		params = {
+			"layerDataArray": [ldi.to_dict() for ldi in layers],
+			"overwriteExisting": overwriteExisting,
+		}
+		return self._run(name_, params)
+
+	def CreateLayerCombinations(
+		self, lcda: List[Dict], overwriteExisting: bool = False
+	) -> Dict[str, Any]:
+		"""Creates or overwrites Layer Combination attributes based on the given parameters.
+		MinVer: 1.2.4"""
+		name_: str = func_name(currentframe())
+		params = {
+			"layerCombinationDataArray": [
+				{"name": lcda[0]["name"], "layers": lcda[0]["layers"]}
+			],
+			# "layerCombinationDataArray": [{"name": lcda[0]["name"], "layers":{[ldi.to_dict() for ldi in lcda]}],
+			"overwriteExisting": overwriteExisting,
+		}
+		print(params)
 		return self._run(name_, params)
 
 	def CreateBuildingMaterials(
 		self, bmatData: list, overwriteExisting: bool = False
 	) -> Dict[str, Any]:
 		"""Creates Building Materials based on the given parameters."""
-		name_ = inspect.currentframe().f_code.co_name
+		name_: str = func_name(currentframe())
 		params = {
 			"buildingMaterialDataArray": bmatData,
 			"overwriteExisting": overwriteExisting,
@@ -1451,7 +1693,7 @@ class TapirCommands:
 		self, compositeData: list, overwriteExisting: bool = False
 	) -> Dict[str, Any]:
 		"""Creates Composite based on the given parameters."""
-		name_ = inspect.currentframe().f_code.co_name
+		name_: str = func_name(currentframe())
 		params = {
 			"compositeDataArray": compositeData,
 			"overwriteExisting": overwriteExisting,
@@ -1499,7 +1741,7 @@ class TapirCommands:
 		alphaAffectsDiffuseColor: bool = False,
 	) -> dict:
 		"""Creates Surface attributes based on the given parameters."""
-		name_ = inspect.currentframe().f_code.co_name
+		name_: str = func_name(currentframe())
 		params = {
 			"surfaceDataArray": [
 				{
@@ -1550,7 +1792,9 @@ class TapirCommands:
 		if _is_guid(fillId):
 			params["surfaceDataArray"]["fillId"] = {"attributeId": {"guid": fillId}}
 		else:
-			_fillguid = self._find_guid_of_attr(
+			from .helper import fetch_attribute_guid
+
+			_fillguid = fetch_attribute_guid(
 				AttrType.FILL,
 				fillId,
 			)
@@ -1561,9 +1805,18 @@ class TapirCommands:
 		self, attributeIds: list
 	) -> Dict[str, Any]:
 		"""Retrieves the physical properties of the given Building Materials."""
-		name_ = inspect.currentframe().f_code.co_name
+		name_: str = func_name(currentframe())
 		params = {
 			"attributeIds": attributeIds,
+		}
+		return self._run(name_, params)
+
+	def GetLayerCombinations(self, guid: List[str]) -> Dict[str, Any]:
+		"""Returns the details of a layer combination.
+		MinVer: 1.2.4"""
+		name_: str = func_name(currentframe())
+		params = {
+			"attributes": [{"attributeId": {"guid": id}} for id in guid],
 		}
 		return self._run(name_, params)
 
@@ -1571,12 +1824,12 @@ class TapirCommands:
 	# region 	Library Commands
 	def GetLibraries(self) -> Dict[str, Any]:
 		"""Gets the list of loaded libraries."""
-		name_ = inspect.currentframe().f_code.co_name
+		name_: str = func_name(currentframe())
 		return self._run(name_)
 
 	def ReloadLibraries(self) -> Dict[str, Any]:
 		"""Executes the reload libraries command."""
-		name_ = inspect.currentframe().f_code.co_name
+		name_: str = func_name(currentframe())
 		return self._run(name_)
 
 	def AddFilesToEmbeddedLibrary(self, inputPath: Path, libPath: str = "") -> dict:
@@ -1587,7 +1840,7 @@ class TapirCommands:
 			libPath(`str`): The relative path to the new file inside embedded library.
 		"""
 		# TODO: make with lists
-		name_ = inspect.currentframe().f_code.co_name
+		name_: str = func_name(currentframe())
 
 		# is the file available?
 		_in = _validate_path(inputPath, io_op="r")
@@ -1607,41 +1860,41 @@ class TapirCommands:
 	# region 	Teamwork Commands
 	def _twTest(self, command: str) -> bool:
 		"""Internal function that will warn if a file is not a TW file."""
-		if not self.getProjectInfo()["isTeamwork"]:
+		if not self.GetProjectInfo()["isTeamwork"]:
 			_printcol(f"Not a Teamwork file! Command »{command}« will not be sent.")
 			return False
 		return True
 
-	def TeamworkSend(self) -> Dict[str, Any]:
+	def TeamworkSend(self) -> Dict[str, Any] | None:
 		"""Performs a send operation on the currently opened Teamwork project."""
-		name_ = inspect.currentframe().f_code.co_name
+		name_: str = func_name(currentframe())
 		if self._twTest(name_):
 			return self._run(name_)
 		return None
 
-	def TeamworkReceive(self) -> Dict[str, Any]:
+	def TeamworkReceive(self) -> Dict[str, Any] | None:
 		"""Performs a receive operation on the currently opened Teamwork project."""
-		name_ = inspect.currentframe().f_code.co_name
+		name_: str = func_name(currentframe())
 		if self._twTest(name_):
 			return self._run(name_)
 		return None
 
 	def ReserveElements(
 		self, elements: "ElementCollection" | List[Dict[str, str]]
-	) -> Dict[str, Any]:
+	) -> Dict[str, Any] | None:
 		"""Performs a receive operation on the currently opened Teamwork project."""
 		params = {"elements": _ensure_elem_list(elements)}
-		name_ = inspect.currentframe().f_code.co_name
+		name_: str = func_name(currentframe())
 		if self._twTest(name_):
 			return self._run(name_, params)
 		return None
 
 	def ReleaseElements(
 		self, elements: "ElementCollection" | List[Dict[str, str]]
-	) -> Dict[str, Any]:
+	) -> Dict[str, Any] | None:
 		"""Releases elements in Teamwork mode."""
 		params = {"elements": _ensure_elem_list(elements)}
-		name_ = inspect.currentframe().f_code.co_name
+		name_: str = func_name(currentframe())
 		if self._twTest(name_):
 			return self._run(name_, params)
 		return None
@@ -1658,7 +1911,7 @@ class TapirCommands:
 			outputPath (`str | Path`): Full local or LAN path for publishing. Optional, by
 				default the path set in the settings of the publisher set will be used.
 		"""
-		name_ = inspect.currentframe().f_code.co_name
+		name_: str = func_name(currentframe())
 		params = {"publisherSetName": publisherSetName}
 		if outputPath is not None:
 			params["outputPath"] = _validate_path(outputPath)
@@ -1668,7 +1921,7 @@ class TapirCommands:
 		self, elements: "ElementCollection" | List[Dict[str, str]]
 	) -> Dict[str, Any]:
 		"""Performs a drawing update on the given elements."""
-		name_ = inspect.currentframe().f_code.co_name
+		name_: str = func_name(currentframe())
 		params = {"elements": _ensure_elem_list(elements)}
 		return self._run(name_, params)
 
@@ -1676,18 +1929,18 @@ class TapirCommands:
 		self, navigatorItemIds: List[Dict[str, str]]
 	) -> Dict[str, str]:
 		"""Gets the ID of the database associated with the supplied Navigator item ID."""
-		name_ = inspect.currentframe().f_code.co_name
+		name_: str = func_name(currentframe())
 		params = {"navigatorItemIds": navigatorItemIds}
 		return self._run(name_, params)
 
 	def GetModelViewOptions(self) -> Dict[str, str]:
 		"""Gets all model view options."""
-		name_ = inspect.currentframe().f_code.co_name
+		name_: str = func_name(currentframe())
 		return self._run(name_)
 
 	def GetViewSettings(self, navigatorItems: str | list[str]) -> dict:
 		"""Sets the view settings of navigator items."""
-		name_ = inspect.currentframe().f_code.co_name
+		name_: str = func_name(currentframe())
 		if isinstance(navigatorItems, str):
 			navigatorItems = [navigatorItems]
 		params = {
@@ -1701,7 +1954,7 @@ class TapirCommands:
 		self, databases: List[Dict[str, str]]
 	) -> Dict[str, str]:
 		"""Get zoom and rotation of 2D views."""
-		name_ = inspect.currentframe().f_code.co_name
+		name_: str = func_name(currentframe())
 		params = {"databases": databases}
 		return self._run(name_, params)
 
@@ -1720,7 +1973,7 @@ class TapirCommands:
 			parentIssueId (`str`): The GUID of an existing issue to nest the issue into.
 			tagText (`str`): Tag text of the issue, optional.
 		"""
-		name_ = inspect.currentframe().f_code.co_name
+		name_: str = func_name(currentframe())
 		params = {"name": name, "parentIssueId": parentIssueId, "tagText": tagText}
 		return self._run(name_, params)
 
@@ -1730,33 +1983,33 @@ class TapirCommands:
 		Args:
 			acceptAllElements (`bool`): Accept all creation/deletion/modification of the deleted issue. By default false.
 		"""
-		name_ = inspect.currentframe().f_code.co_name
+		name_: str = func_name(currentframe())
 		params = {"issueId": {"guid": issueId}, "acceptAllElements": acceptAllElements}
 		return self._run(name_, params)
 
 	def GetIssues(self) -> List[Dict]:
 		"""Retrieves information about existing issues.\n
 		This command has no arguments."""
-		name_ = inspect.currentframe().f_code.co_name
+		name_: str = func_name(currentframe())
 		return self._run(name_)["issues"]
 
 	def AddCommentToIssue(
 		self, issueId, text: str, author: str = "", status: str = "Unknown"
 	) -> Dict[str, Any]:
 		"""Adds a new comment to the specified issue."""
-		name_ = inspect.currentframe().f_code.co_name
+		name_: str = func_name(currentframe())
 		params = {"issueId": issueId, "author": author, "status": status, "text": text}
 		return self._run(name_, params)
 
 	def GetCommentsFromIssue(self, issueId) -> Dict[str, Any]:
 		"""Adds a new comment to the specified issue."""
-		name_ = inspect.currentframe().f_code.co_name
+		name_: str = func_name(currentframe())
 		params = {"issueId": issueId}
 		return self._run(name_, params)
 
 	def AttachElementsToIssue(self, issueId, elements) -> Dict[str, Any]:
 		"""Adds a new comment to the specified issue."""
-		name_ = inspect.currentframe().f_code.co_name
+		name_: str = func_name(currentframe())
 		params = {"issueId": issueId}
 		return self._run(name_, params)
 
@@ -1764,7 +2017,7 @@ class TapirCommands:
 		self, issueId, elements: "ElementCollection" | List[Dict[str, str]]
 	) -> Dict[str, Any]:
 		"""Detaches elements from the specified issue."""
-		name_ = inspect.currentframe().f_code.co_name
+		name_: str = func_name(currentframe())
 		params = {"issueId": issueId, "elements": _ensure_elem_list(elements)}
 		return self._run(name_, params)
 
@@ -1782,7 +2035,7 @@ class TapirCommands:
 		Returns:
 			Gives a back a list with GUIDs of the elements associated to the issue.
 		"""
-		name_ = inspect.currentframe().f_code.co_name
+		name_: str = func_name(currentframe())
 		params = {"issueId": {"guid": issueId}, "type": type}
 		_elem = self._run(name_, params)["elements"]
 		guids = []
@@ -1810,7 +2063,7 @@ class TapirCommands:
 			FileNotFoundError: If parent directory doesn't exist
 			PermissionError: If no write permission for directory or file
 		"""
-		name_ = inspect.currentframe().f_code.co_name
+		name_: str = func_name(currentframe())
 
 		# Validate and normalize the export path
 		validated_path = _validate_path(exportPath, "bcf", "w")
@@ -1838,7 +2091,7 @@ class TapirCommands:
 			ValueError: If exportPath is invalid or doesn't end with .bcf
 			FileNotFoundError: If parent directory doesn't exist
 		"""
-		name_ = inspect.currentframe().f_code.co_name
+		name_: str = func_name(currentframe())
 
 		# Validate and normalize
 		validated_path = _validate_path(importPath, "bcf")
@@ -1853,24 +2106,24 @@ class TapirCommands:
 	# region 	Revision Management Commands
 	def GetRevisionIssues(self) -> Dict[str, Any]:
 		"""Retrieves all issues."""
-		name_ = inspect.currentframe().f_code.co_name
+		name_: str = func_name(currentframe())
 		return self._run(name_)
 
 	def GetRevisionChanges(self) -> Dict[str, Any]:
 		"""Retrieves all changes."""
-		name_ = inspect.currentframe().f_code.co_name
+		name_: str = func_name(currentframe())
 		return self._run(name_)
 
 	def GetDocumentRevisions(self) -> Dict[str, Any]:
 		"""Retrieves all document revisions."""
-		name_ = inspect.currentframe().f_code.co_name
+		name_: str = func_name(currentframe())
 		return self._run(name_)
 
 	def GetCurrentRevisionChangesOfLayouts(
 		self, layoutDatabaseIds: List[Dict]
 	) -> Dict[str, Any]:
 		"""Retrieves all document revisions."""
-		name_ = inspect.currentframe().f_code.co_name
+		name_: str = func_name(currentframe())
 		params = {"layoutDatabaseIds": layoutDatabaseIds}
 		return self._run(name_, params)
 
@@ -1878,9 +2131,29 @@ class TapirCommands:
 		self, elements: "ElementCollection" | List[Dict[str, str]]
 	) -> Dict[str, Any]:
 		"""Retrieves the changes belong to the given elements."""
-		name_ = inspect.currentframe().f_code.co_name
+		name_: str = func_name(currentframe())
 		params = {"elements": _ensure_elem_list(elements)}
 		return self._run(name_, params)
+
+	# endregion
+	# region 	Design Options Commands
+	def GetDesignOptions(self) -> Dict[str, Any]:
+		"""Retrieves information about existing design options. Available from Archicad 29.
+		MinVer: 1.2.7"""
+		name_: str = func_name(currentframe())
+		return self._run(name_)
+
+	def GetDesignOptionSets(self) -> Dict[str, Any]:
+		"""Retrieves information about existing design option sets. Available from Archicad 29.
+		MinVer: 1.2.7"""
+		name_: str = func_name(currentframe())
+		return self._run(name_)
+
+	def GetDesignOptionCombinations(self) -> Dict[str, Any]:
+		"""Retrieves information about existing design option combinations. Available from Archicad 29.
+		MinVer: 1.2.7"""
+		name_: str = func_name(currentframe())
+		return self._run(name_)
 
 	# endregion
 
