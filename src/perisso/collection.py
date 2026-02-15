@@ -2,7 +2,7 @@ from typing import List
 from archicad import Types as act
 from .tapir_commands import tapir
 from .enums import ElType, Filter
-from .types import Color
+from .ptypes import Color
 from .utils import getPropValues, getDetails, getGeometry, acu, _pprint  # noqa: F401 fmt: skip
 from .guid import _is_guid  # noqa: F401
 
@@ -10,7 +10,9 @@ from .guid import _is_guid  # noqa: F401
 class ElementCollection:
 	"""Fluent interface for filtering elements with method chaining."""
 
-	def __init__(self, elements, *, _field=None, _propGUID: str = None):
+	def __init__(
+		self, elements, *, _field: Filter | None = None, _propGUID: str | None = None
+	):
 		self.elements = elements
 		self._field = _field
 		self._propGUID = _propGUID
@@ -105,7 +107,7 @@ class ElementCollection:
 		self._propGUID = str(acu.GetUserDefinedPropertyId(group, name).guid)
 
 		# Only include elements that have a "propertyValue" key (not "error")
-		_prop_values_or_error = tapir.getPropertyValuesOfElements(self.elements, [self._propGUID])["propertyValuesForElements"]  # fmt: skip
+		_prop_values_or_error = tapir.GetPropertyValuesOfElements(self.elements, [self._propGUID])["propertyValuesForElements"]  # fmt: skip
 		filtered = []
 		for i, prop_result in enumerate(_prop_values_or_error):
 			prop_value = prop_result["propertyValues"][0]
