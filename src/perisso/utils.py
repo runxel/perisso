@@ -2,7 +2,7 @@ import json
 from typing import Dict, List, TYPE_CHECKING
 from .connection import acc, acu, act
 from .enums import Filter, ElType
-from .types import Coordinate, Arc
+from .ptypes import Coordinate, Arc
 from .tapir_commands import tapir, _ensure_elem_list
 
 # Only import for type checking, not at runtime
