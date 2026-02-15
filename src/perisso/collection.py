@@ -12,7 +12,7 @@ class ElementCollection:
 
 	def __init__(
 		self, elements, *, _field: Filter | None = None, _propGUID: str | None = None
-	):
+	) -> None:
 		self.elements = elements
 		self._field = _field
 		self._propGUID = _propGUID
@@ -47,7 +47,7 @@ class ElementCollection:
 		}
 
 	@classmethod
-	def from_dict(cls, data: dict):
+	def from_dict(cls, data: dict) -> "ElementCollection":
 		"""Creates an ElementCollection from dictionary.
 
 		Args:
@@ -59,7 +59,7 @@ class ElementCollection:
 		return collection
 
 	@classmethod
-	def from_guid(cls, guids: str | list[str]):
+	def from_guid(cls, guids: str | list[str]) -> "ElementCollection":
 		"""Creates an ElementCollection from GUID(s).
 
 		Args:
@@ -81,11 +81,11 @@ class ElementCollection:
 		return cls(elements)
 
 	@property
-	def guids(self):
+	def guids(self) -> list[str]:
 		"""Returns a flat list of all element GUIDs in the ElementCollection."""
 		return [element["elementId"]["guid"] for element in self.elements]
 
-	def filterBy(self, field: Filter):
+	def filterBy(self, field: Filter) -> "ElementCollection":
 		"""Set the field to filter by. Accepts a Filter enum."""
 		if isinstance(field, Filter):
 			self._field = field
@@ -93,7 +93,7 @@ class ElementCollection:
 			raise TypeError("Field must be a valid Filter enum")
 		return self
 
-	def property(self, group: str, name: str):
+	def property(self, group: str, name: str) -> "ElementCollection":
 		"""Must follow on a `.filterBy(Filter.PROPERTY)` to specify which Property should be read.
 		Please note: When filtering to a property all elements that do not have the property available are discarded.
 
@@ -118,7 +118,7 @@ class ElementCollection:
 			filtered, _field=Filter.PROPERTY, _propGUID=self._propGUID
 		)
 
-	def and_(self, other_collection_or_callable):
+	def and_(self, other_collection_or_callable) -> "ElementCollection":
 		"""Combine with another ElementCollection using AND logic (intersection).
 
 		Args:
@@ -154,7 +154,9 @@ class ElementCollection:
 		return ElementCollection(intersection_elements)
 
 	# region // string comparisons
-	def startsWith(self, value: str | ElType, casesensitive: bool = True):
+	def startsWith(
+		self, value: str | ElType, casesensitive: bool = True
+	) -> "ElementCollection":
 		if not self._field:
 			raise ValueError("Must call filterBy() first")
 
@@ -181,7 +183,9 @@ class ElementCollection:
 
 		return ElementCollection(filtered)
 
-	def endsWith(self, value: str | ElType, casesensitive: bool = True):
+	def endsWith(
+		self, value: str | ElType, casesensitive: bool = True
+	) -> "ElementCollection":
 		if not self._field:
 			raise ValueError("Must call filterBy() first")
 
@@ -208,7 +212,9 @@ class ElementCollection:
 
 		return ElementCollection(filtered)
 
-	def contains(self, value: str | ElType, casesensitive: bool = True):
+	def contains(
+		self, value: str | ElType, casesensitive: bool = True
+	) -> "ElementCollection":
 		if not self._field:
 			raise ValueError("Must call filterBy() first")
 
@@ -236,7 +242,9 @@ class ElementCollection:
 
 		return ElementCollection(filtered)
 
-	def equals(self, value: str | int | float | ElType, casesensitive: bool = True):
+	def equals(
+		self, value: str | int | float | ElType, casesensitive: bool = True
+	) -> "ElementCollection":
 		"""Keep only the elements whose value match the input.
 		Args:
 			value (`str` | `int`| `float`| `ElType`): Value to check against.
@@ -284,7 +292,9 @@ class ElementCollection:
 	# endregion //
 
 	# region // numeric comparisons
-	def lessThan(self, value: int | float, inclusive: bool = False):
+	def lessThan(
+		self, value: int | float, inclusive: bool = False
+	) -> "ElementCollection":
 		"""Keep only elements whose numeric value is less than the input.
 		Args:
 			value (`int` | `float`): Numeric value to compare against.
@@ -316,7 +326,9 @@ class ElementCollection:
 
 		return ElementCollection(filtered)
 
-	def greaterThan(self, value: int | float, inclusive: bool = False):
+	def greaterThan(
+		self, value: int | float, inclusive: bool = False
+	) -> "ElementCollection":
 		"""Keep only elements whose numeric value is greater than the input.
 		Args:
 			value (`int` | `float`): Numeric value to compare against.
@@ -350,7 +362,7 @@ class ElementCollection:
 
 	def between(
 		self, min_value: int | float, max_value: int | float, inclusive: bool = True
-	):
+	) -> "ElementCollection":
 		"""Keep only elements whose numeric value is between min and max values.
 		Args:
 			min_value (`int` | `float`): Minimum value (lower bound).
@@ -385,19 +397,19 @@ class ElementCollection:
 
 	# endregion //
 	# region 	//  Helper functions
-	def get(self):
+	def get(self) -> list:
 		"""Return the filtered elements."""
 		return self.elements
 
-	def count(self):
+	def count(self) -> int:
 		"""Return the count of filtered elements."""
 		return len(self.elements)
 
-	def first(self):
+	def first(self) -> dict | None:
 		"""Return the first element or None if empty."""
 		return self.elements[0] if self.elements else None
 
-	def toNative(self):
+	def toNative(self) -> list:
 		"""Return a native (original Archicad-Python connection) element list with their appropiate types."""
 		return [
 			act.ElementIdArrayItem(act.ElementId(item["elementId"]["guid"]))
@@ -412,7 +424,7 @@ class ElementCollection:
 		highlightcolor: Color | List[Color] = Color("green"),
 		mutedcolor: Color = Color(164, 166, 165, 128),
 		wireframe=True,
-	):
+	) -> "ElementCollection":
 		"""Highlight the elements in the Collection in the given color and mute all other elements.
 
 		Args:
@@ -434,7 +446,7 @@ class ElementCollection:
 	# endregion
 
 	# region // __dunder__ methods
-	def __len__(self):
+	def __len__(self) -> int:
 		return len(self.elements)
 
 	def __iter__(self):
@@ -461,7 +473,7 @@ class ElementCollection:
 		else:
 			raise TypeError("Index must be an integer or slice")
 
-	def __str__(self):
+	def __str__(self) -> str:
 		return f"Collection of {self.count()} element" + (
 			"s" if self.count() > 1 else ""
 		)
@@ -469,10 +481,10 @@ class ElementCollection:
 	# There is currently no nice way to make an object JSON serializable without
 	# hacking or writing a JsonEncoder.
 	# Instead one should just use the ".get()" method; then no error will occur.
-	def __dict__(self):
+	def __dict__(self) -> dict:
 		return {"elements": self.elements}
 
-	def __contains__(self, item):
+	def __contains__(self, item) -> bool:
 		"""Check if an element or GUID is in this ElementCollection."""
 		if isinstance(item, str):
 			return any(
@@ -488,7 +500,7 @@ class ElementCollection:
 		else:
 			return False
 
-	def __add__(self, other):
+	def __add__(self, other) -> "ElementCollection":
 		"""Combine two ElementCollection instances, removing duplicates based on GUID."""
 		if not isinstance(other, ElementCollection):
 			raise TypeError("Can only add ElementCollection to ElementCollection")
@@ -513,7 +525,7 @@ class ElementCollection:
 
 		return ElementCollection(combined_elements)
 
-	def __iadd__(self, other):
+	def __iadd__(self, other) -> "ElementCollection":
 		"""In-place addition (+=) for ElementCollection instances."""
 		if not isinstance(other, ElementCollection):
 			raise TypeError("Can only add ElementCollection to ElementCollection")
@@ -530,7 +542,7 @@ class ElementCollection:
 
 		return self
 
-	def __sub__(self, other):
+	def __sub__(self, other) -> "ElementCollection":
 		"""Subtract ElementCollection instances, removing elements that exist in other."""
 		if not isinstance(other, ElementCollection):
 			raise TypeError(
@@ -549,7 +561,7 @@ class ElementCollection:
 
 		return ElementCollection(filtered_elements)
 
-	def __isub__(self, other):
+	def __isub__(self, other) -> "ElementCollection":
 		"""In-place subtraction (-=) for ElementCollection instances."""
 		if not isinstance(other, ElementCollection):
 			raise TypeError(
