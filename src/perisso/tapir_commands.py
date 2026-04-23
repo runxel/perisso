@@ -104,9 +104,9 @@ class TapirCommands:
 		self.acc = acc
 		self.act = act
 
-	def _run(self, command: str, params: Dict | None = None):
+	def _run(self, command: str, params: Any | None = None):
 		"""Runs the actual command with optional parameters."""
-		if params:
+		if params is not None:
 			return self.acc.ExecuteAddOnCommand(
 				self.act.AddOnCommandId("TapirCommand", command), params
 			)
@@ -258,25 +258,28 @@ class TapirCommands:
 		return self._run(name_, params)
 
 	def GetGeoLocation(self) -> dict:
-		"""Gets the project's location details."""
+		"""Gets the project's location details.
+
+		MinVer: 1.1.6"""
 		name_: str = func_name(currentframe())
 		return self._run(name_)
 
 	def SetGeoLocation(
 		self,
-		long: float,
-		lat: float,
-		alt: float,
-		north: float,
-		eastings: float,
-		northings: float,
-		elevation: float,
-		crsName: str,
-		crsDescription: str,
-		geodeticDatum: str,
-		verticalDatum: str,
-		mapProjection: str,
-		mapZone: str,
+		long: float | None = None,
+		lat: float | None = None,
+		alt: float | None = None,
+		north: float | None = None,
+		north_is_degrees: bool = False,
+		eastings: float | None = None,
+		northings: float | None = None,
+		elevation: float | None = None,
+		crsName: str | None = None,
+		crsDescription: str | None = None,
+		geodeticDatum: str | None = None,
+		verticalDatum: str | None = None,
+		mapProjection: str | None = None,
+		mapZone: str | None = None,
 	) -> dict:
 		"""Sets the project's location details.
 
@@ -286,39 +289,42 @@ class TapirCommands:
 			"projectLocation": {},
 			"surveyPoint": {"position": {}, "geoReferencingParameters": {}},
 		}
-		if long:
+		if long is not None:
 			params["projectLocation"]["longitude"] = long
-		if lat:
+		if lat is not None:
 			params["projectLocation"]["latitude"] = lat
-		if alt:
+		if alt is not None:
 			params["projectLocation"]["altitude"] = alt
-		if north:
-			params["projectLocation"]["north"] = north
-		if eastings:
+		if north is not None:
+			if north_is_degrees:
+				params["projectLocation"]["north"] = math.radians(north)
+			else:
+				params["projectLocation"]["north"] = north
+		if eastings is not None:
 			params["surveyPoint"]["position"]["eastings"] = eastings
-		if northings:
+		if northings is not None:
 			params["surveyPoint"]["position"]["northings"] = northings
-		if elevation:
+		if elevation is not None:
 			params["surveyPoint"]["position"]["elevation"] = elevation
-		if crsName:
+		if crsName is not None:
 			params["surveyPoint"]["geoReferencingParameters"]["crsName"] = crsName
-		if crsDescription:
+		if crsDescription is not None:
 			params["surveyPoint"]["geoReferencingParameters"]["description"] = (
 				crsDescription
 			)
-		if geodeticDatum:
+		if geodeticDatum is not None:
 			params["surveyPoint"]["geoReferencingParameters"]["geodeticDatum"] = (
 				geodeticDatum
 			)
-		if verticalDatum:
+		if verticalDatum is not None:
 			params["surveyPoint"]["geoReferencingParameters"]["verticalDatum"] = (
 				verticalDatum
 			)
-		if mapProjection:
+		if mapProjection is not None:
 			params["surveyPoint"]["geoReferencingParameters"]["mapProjection"] = (
 				mapProjection
 			)
-		if mapZone:
+		if mapZone is not None:
 			params["surveyPoint"]["geoReferencingParameters"]["mapZone"] = mapZone
 
 		return self._run(name_, params)
@@ -353,8 +359,8 @@ class TapirCommands:
 
 	def ChangeSelectionOfElements(
 		self,
-		addElem: "ElementCollection" | List[Dict[str, str]] = None,
-		subElem: "ElementCollection" | List[Dict[str, str]] = None,
+		addElem: "ElementCollection" | List[Dict[str, str]] | None = None,
+		subElem: "ElementCollection" | List[Dict[str, str]] | None = None,
 	) -> dict:
 		"""Modifies the current selection of elements in Archicad by Adding or Removing a number of elements from it."""
 		name_: str = func_name(currentframe())
@@ -378,10 +384,10 @@ class TapirCommands:
 		self,
 		elements: "ElementCollection" | List[Dict[str, str]],
 		*,
-		story: int = None,
-		layer: int | str = None,
-		drawIndex: int = None,
-		typeSpecificDetails: dict = None,
+		story: int | None = None,
+		layer: int | str | None = None,
+		drawIndex: int | None = None,
+		typeSpecificDetails: dict | None = None,
 	) -> dict:
 		"""Sets the details of the given elements (story, layer, order etc).
 
@@ -422,7 +428,7 @@ class TapirCommands:
 
 	def Get3DBoundingBoxes(
 		self, elements: "ElementCollection" | List[Dict[str, str]]
-	) -> Dict[str, any]:
+	) -> Dict[str, Any]:
 		"""Get 3D bounding boxes of elements."""
 		name_: str = func_name(currentframe())
 		params = {"elements": _ensure_elem_list(elements)}
@@ -760,7 +766,7 @@ class TapirCommands:
 	def SetClassificationsOfElements(
 		self,
 		elements: "ElementCollection" | List[Dict[str, str]],
-		classificationId: Dict = None,
+		classificationId: Dict | None = None,
 		*,
 		classificationSystemId: str = "",
 		classificationItemId: str = "",
@@ -934,13 +940,13 @@ class TapirCommands:
 		self,
 		zoneName: str = "",
 		zoneNumber: str = "",
-		story: int = None,
+		story: int | None = None,
 		*,
 		zoneCategory: str | Any = None,
 		geometryType: Literal["auto", "manual"] = "auto",
-		coorAuto: Coordinate = None,
-		coorsManual: Polygon = None,
-		stampPosition: Coordinate = None,
+		coorAuto: Coordinate | None = None,
+		coorsManual: Polygon | None = None,
+		stampPosition: Coordinate | None = None,
 	) -> dict:
 		"""Creates Zone elements based on the given parameters."""
 		name_: str = func_name(currentframe())
@@ -1486,8 +1492,8 @@ class TapirCommands:
 		isEditable: bool = True,
 		defaultValue: Any | list[Any] | Literal["userUndefined", "notAvailable"],
 		possibleEnumValues: list[Any] | None = None,
-		expression: str | list[str] = None,
-		availability: str = None,
+		expression: str | list[str] | None = None,
+		availability: str | None = None,
 	) -> Dict[str, Any]:
 		"""
 		Creates Custom Property Definitions based on the given parameters.
@@ -1902,7 +1908,7 @@ class TapirCommands:
 	# endregion
 	# region 	Navigator Commands
 	def PublishPublisherSet(
-		self, publisherSetName: str, outputPath: str | Path = None
+		self, publisherSetName: str, outputPath: str | Path | None = None
 	) -> Dict[str, Any]:
 		"""Performs a publish operation on the currently opened project. Only the given publisher set will be published.
 
@@ -1964,7 +1970,7 @@ class TapirCommands:
 		self,
 		name: str,
 		parentIssueId: str = "00000000-0000-0000-0000-000000000000",
-		tagText: str = None,
+		tagText: str | None = None,
 	) -> dict:
 		"""Creates a new issue.
 
