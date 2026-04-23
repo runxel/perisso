@@ -50,9 +50,9 @@ def _toNative(elements):
 
 def getPropValues(
 	*,
-	builtin: str = None,
-	propGUID: str = None,
-	elements: "ElementCollection" | List[Dict[str, str]],
+	builtin: str | None = None,
+	propGUID: str | None = None,
+	elements: "ElementCollection | List[Dict[str, str]]",
 ) -> list:
 	"""Get Properties with the original Archicad-Python connection.
 
@@ -137,7 +137,7 @@ def getDetails(
 
 
 def getGeometry(
-	filter: Filter, elements: "ElementCollection" | List[Dict[str, str]]
+	filter: Filter, elements: "ElementCollection | List[Dict[str, str]]"
 ) -> list:
 	"""Get geometric properties of elements.
 

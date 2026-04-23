@@ -1,4 +1,4 @@
-from typing import Union, Iterator, Tuple
+from typing import Union, Iterator, Sequence, Tuple
 import math
 import random
 from .guid import _is_guid
@@ -9,7 +9,7 @@ class Vector:
 	Used for moving and copying.
 	"""
 
-	def __init__(self, x: float, y: float, z: float = None):
+	def __init__(self, x: float, y: float, z: float | None = None):
 		"""Initialize a vector with x, y and optionally z coordinates.
 
 		Args:
@@ -381,7 +381,7 @@ class Coordinate:
 
 	def translate(self, vector: Vector | tuple) -> "Coordinate":
 		"""Translate this coordinate by a vector."""
-		from .types import Vector
+		from .ptypes import Vector
 
 		if isinstance(vector, tuple):
 			vector = Vector(vector[0], vector[1])
@@ -396,7 +396,7 @@ class Coordinate:
 
 	def vector_to(self, other: "Coordinate") -> Vector:
 		"""Create a vector from this coordinate to another coordinate."""
-		from .types import Vector
+		from .ptypes import Vector
 
 		if not isinstance(other, Coordinate):
 			raise TypeError("Can only create vector to another Coordinate")
@@ -766,8 +766,8 @@ class Polyline:
 
 	def __init__(
 		self,
-		coordinates: list[Union[Coordinate, dict, tuple]],
-		arcs: list[dict] = None,
+		coordinates: Sequence[Union[Coordinate, dict, tuple]],
+		arcs: list[dict] | None = None,
 		is_closed: bool = False,
 	):
 		"""Initialize a polyline with coordinates and optional arcs.
@@ -779,7 +779,7 @@ class Polyline:
 		"""
 		self.coordinates = []
 		self.arcs = arcs or []
-		self.is_closed = is_closed
+		self.is_closed: bool = is_closed
 
 		# Convert coordinates to Coordinate objects
 		for coord in coordinates:
@@ -945,7 +945,9 @@ class Polyline:
 
 		# Note: This may invalidate arc indices...
 
-	def add_arc(self, beg_index: int, end_index: int = None, arc_angle: float = 0.0):
+	def add_arc(
+		self, beg_index: int, end_index: int | None = None, arc_angle: float = 0.0
+	):
 		"""Add an arc definition to the polyline.
 
 		Args:
@@ -1005,11 +1007,51 @@ class Polyline:
 		return result
 
 	@classmethod
-	def from_dict(cls, data: dict, is_closed: bool = False) -> "Polyline":
-		"""Create polyline from dictionary (Archicad format)."""
-		coordinates = data.get("coordinates", [])
-		arcs = data.get("arcs", [])
-		return cls(coordinates, arcs, is_closed)
+	def from_dict(cls, data: dict) -> "Polyline":
+		"""Create polyline from a dictionary.
+
+		Accepts any of:
+		- Raw polyline dict with ``coordinates`` and optionally ``arcs``.
+		- A single element entry (dict with a ``details`` sub-dict).
+		- The full output of ``GetDetailsOfElements`` (dict with
+		  ``detailsOfElements``). The first polyline entry is used.
+
+		Closedness is inferred from the data: if the last coordinate equals
+		the first, the polyline is treated as closed.
+		"""
+		# Unwrap full GetDetailsOfElements output
+		if isinstance(data.get("detailsOfElements"), list):
+			elements = [
+				e
+				for e in data["detailsOfElements"]
+				if isinstance(e, dict) and isinstance(e.get("details"), dict)
+			]
+			if not elements:
+				raise ValueError("No polyline entry found in detailsOfElements")
+			data = elements[0]
+
+		# Unwrap single element entry
+		if isinstance(data.get("details"), dict):
+			data = data["details"]
+
+		raw_coords = data.get("coordinates") or []
+		arcs = data.get("arcs") or []
+
+		# Normalize coordinates so we can compare first/last reliably.
+		coords: list[Coordinate] = []
+		for coord in raw_coords:
+			if isinstance(coord, Coordinate):
+				coords.append(coord)
+			elif isinstance(coord, dict):
+				coords.append(Coordinate.from_dict(coord))
+			elif isinstance(coord, (list, tuple)) and len(coord) >= 2:
+				coords.append(Coordinate(coord[0], coord[1]))
+			else:
+				raise ValueError(f"Invalid coordinate format: {coord}")
+
+		is_closed = len(coords) >= 2 and coords[0].is_close(coords[-1])
+
+		return cls(coords, arcs, is_closed)
 
 	@classmethod
 	def rectangle(
@@ -1098,7 +1140,7 @@ class Polyline:
 	# String representations
 	def __str__(self) -> str:
 		"""Simple string representation."""
-		closed_str = "closed with " if self.is_closed else ""
+		closed_str = "closed with " if self.is_closed else "open with "
 		arc_str = f", {len(self.arcs)} arcs" if self.arcs else ""
 		return f"Polyline ({closed_str}{len(self.coordinates)} points{arc_str})"
 
