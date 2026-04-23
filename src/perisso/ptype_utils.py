@@ -1,65 +1,123 @@
-from .ptypes import Coordinate, Arc  # noqa: F401
+import math
+from typing import Union
+
+from .ptypes import Coordinate, Polyline, Polygon
 
 
-def polygon_centroid(coordinates: list[Coordinate]) -> Coordinate:
-	"""Calculate the centroid (center of mass) of a polygon given as a list of Coordinate objects.
+def polygon_centroid(shape: Union[Polyline, Polygon]) -> Coordinate:
+	"""Calculate the area-weighted centroid of a Polyline or Polygon.
 
-	Uses the standard polygon centroid formula which accounts for the area distribution.
-	For simple geometric center (average of vertices), use `polygon_geometric_center()` instead.
+	Uses the shoelace formula on the outline vertices and adds circular-segment
+	corrections for any arc edges, so curved outlines yield the correct center
+	of mass (not just the polygon-of-vertices approximation).
+
+	For a Polygon, only the outline is used — holes are ignored.
+	A Polyline is treated as closed: if the last vertex does not match the
+	first, it is closed implicitly.
+
+	Arc convention follows Archicad: ``arcAngle > 0`` bulges to the right of
+	the direction ``begIndex -> endIndex``; ``arcAngle < 0`` to the left.
 
 	Args:
-		coordinates: List of Coordinate objects defining the polygon vertices.
-		             The polygon is automatically closed if needed.
+		shape: A Polyline or Polygon describing the boundary.
 
 	Returns:
-		Coordinate: The centroid point of the polygon
+		Coordinate: The area-weighted centroid.
 
 	Raises:
-		ValueError: If less than 3 coordinates are provided
-		ValueError: If all coordinates are collinear (zero area)
+		TypeError: If ``shape`` is not a Polyline or Polygon.
+		ValueError: If the outline has fewer than 3 vertices or zero net area.
 	"""
-	if len(coordinates) < 3:
+	if isinstance(shape, Polygon):
+		outline = shape.outline
+	elif isinstance(shape, Polyline):
+		outline = shape
+	else:
+		raise TypeError(
+			f"polygon_centroid requires a Polyline or Polygon, got {type(shape).__name__}"
+		)
+
+	source_coords = outline.coordinates
+	if len(source_coords) < 3:
 		raise ValueError("Polygon must have at least 3 vertices")
 
-	# Ensure all coordinates are 2D for area calculation
-	coords_2d = [coord.to_2d() for coord in coordinates]
+	# Work in 2D and ensure the ring is closed for the shoelace loop.
+	coords = [c.to_2d() for c in source_coords]
+	if not coords[0].is_close(coords[-1]):
+		coords.append(coords[0])
 
-	# Close the polygon if it's not already closed
-	if not coords_2d[0].is_close(coords_2d[-1]):
-		coords_2d.append(coords_2d[0])
+	# Shoelace area and first moments over the chord polygon.
+	# area2 = 2A;  mom_x_raw = 6*A*Cx;  mom_y_raw = 6*A*Cy.
+	area2 = 0.0
+	mom_x_raw = 0.0
+	mom_y_raw = 0.0
+	for i in range(len(coords) - 1):
+		xi, yi = coords[i].x, coords[i].y
+		xj, yj = coords[i + 1].x, coords[i + 1].y
+		cross = xi * yj - xj * yi
+		area2 += cross
+		mom_x_raw += (xi + xj) * cross
+		mom_y_raw += (yi + yj) * cross
 
-	# Calculate area and centroid using the shoelace formula
-	area = 0.0
-	centroid_x = 0.0
-	centroid_y = 0.0
+	area = area2 / 2.0
+	mom_x = mom_x_raw / 6.0
+	mom_y = mom_y_raw / 6.0
 
-	for i in range(len(coords_2d) - 1):
-		x_i, y_i = coords_2d[i].x, coords_2d[i].y
-		x_j, y_j = coords_2d[i + 1].x, coords_2d[i + 1].y
+	# Arc corrections: each arc replaces a chord with a circular arc, so we
+	# add the signed circular-segment area and its first-moment contribution.
+	for arc_def in outline.arcs:
+		theta = float(arc_def["arcAngle"])
+		if abs(theta) < 1e-12:
+			continue
 
-		# Shoelace formula components
-		cross_product = x_i * y_j - x_j * y_i
-		area += cross_product
-		centroid_x += (x_i + x_j) * cross_product
-		centroid_y += (y_i + y_j) * cross_product
+		a = coords[arc_def["begIndex"]]
+		b = coords[arc_def["endIndex"]]
+		dx, dy = b.x - a.x, b.y - a.y
+		chord = math.hypot(dx, dy)
+		if chord < 1e-12:
+			continue
 
-	area = area / 2.0
+		abs_theta = abs(theta)
+		half = abs_theta / 2.0
+		sin_half = math.sin(half)
+		if sin_half < 1e-12:
+			continue
+
+		r = chord / (2.0 * sin_half)
+		seg_area_mag = r * r * (abs_theta - math.sin(abs_theta)) / 2.0
+
+		# Centroid of the segment: along the perpendicular bisector of the
+		# chord, offset from the chord midpoint toward the arc side.
+		denom = abs_theta - math.sin(abs_theta)
+		d_from_center = (4.0 * r * sin_half ** 3) / (3.0 * denom)
+		h_bar = d_from_center - r * math.cos(half)  # signed correctly for |theta| <> pi
+
+		# Right-hand perpendicular unit vector of beg->end.
+		rpx, rpy = dy / chord, -dx / chord
+		sign = 1.0 if theta > 0 else -1.0
+		nx, ny = sign * rpx, sign * rpy
+
+		mid_x = (a.x + b.x) / 2.0
+		mid_y = (a.y + b.y) / 2.0
+		seg_cx = mid_x + nx * h_bar
+		seg_cy = mid_y + ny * h_bar
+
+		seg_area_signed = sign * seg_area_mag
+		area += seg_area_signed
+		mom_x += seg_area_signed * seg_cx
+		mom_y += seg_area_signed * seg_cy
 
 	if abs(area) < 1e-10:
 		raise ValueError("Polygon has zero area (vertices are collinear)")
 
-	centroid_x = centroid_x / (6.0 * area)
-	centroid_y = centroid_y / (6.0 * area)
+	cx = mom_x / area
+	cy = mom_y / area
 
-	# Determine if result should be 2D or 3D based on input
-	has_3d = any(coord.is_3d for coord in coordinates)
-	if has_3d:
-		# Calculate average Z coordinate for 3D result
-		z_sum = sum(coord.z or 0 for coord in coordinates)
-		avg_z = z_sum / len(coordinates)
-		return Coordinate(centroid_x, centroid_y, avg_z)
-	else:
-		return Coordinate(centroid_x, centroid_y)
+	# Preserve 3D if the input was 3D.
+	zs = [c.z for c in source_coords if c.is_3d]
+	if zs:
+		return Coordinate(cx, cy, sum(zs) / len(zs))
+	return Coordinate(cx, cy)
 
 
 def polygon_geometric_center(coordinates: list[Coordinate]) -> Coordinate:
