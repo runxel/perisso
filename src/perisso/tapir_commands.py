@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import math
 from inspect import currentframe
 from types import FrameType
 from typing import Dict, List, Any, Literal, TYPE_CHECKING
@@ -13,7 +14,7 @@ if TYPE_CHECKING:
 from .connection import acc, act
 from .enums import ElType, AttrType, ProjectInfo
 from .ptypes import Vector, Coordinate, Polyline, Polygon, Color, Layer
-from .type_utils import polygon_centroid
+from .ptype_utils import polygon_centroid
 from .helper import zip_repeat_last, _printcol
 from .guid import _is_guid
 
@@ -177,9 +178,44 @@ class TapirCommands:
 		return self._run(name_)
 
 	def GetCurrentWindowType(self) -> str:
-		"""Returns the type of the current (active) window."""
+		"""Returns the type of the current (active) window.
+
+		MinVer: 1.0.7"""
 		name_: str = func_name(currentframe())
 		return self._run(name_)["currentWindowType"]
+
+	def ChangeWindow(
+		self,
+		windowType: Literal[
+			"FloorPlan",
+			"Section",
+			"Details",
+			"3DModel",
+			"Layout",
+			"Drawing",
+			"CustomText",
+			"CustomDraw",
+			"MasterLayout",
+			"Elevation",
+			"InteriorElevation",
+			"Worksheet",
+			"Report",
+			"3DDocument",
+			"External3D",
+			"Movie3D",
+			"MovieRendering",
+			"Rendering",
+			"ModelCompare",
+			"Interactive Schedule",
+			"Unknown",
+		],
+	) -> dict:
+		"""Changes the current (active) window to the specified type.
+
+		MinVer: 1.3.1"""
+		name_: str = func_name(currentframe())
+		params = {"windowType": windowType}
+		return self._run(name_, params)
 
 	# endregion
 	# region 	Project Commands
@@ -251,11 +287,27 @@ class TapirCommands:
 		return self._run(name_)
 
 	def OpenProject(self, path: str | Path) -> dict:
-		"""Opens the given project."""
+		"""Opens the given project.
+
+		MinVer: 1.0.7"""
 		name_: str = func_name(currentframe())
 		path = _validate_path(path, io_op="r")
 		params = {"projectFilePath": path}
 		return self._run(name_, params)
+
+	def CloseProject(self) -> dict:
+		"""Closes the currently opened project.
+
+		MinVer: 1.3.1"""
+		name_: str = func_name(currentframe())
+		return self._run(name_)
+
+	def SaveProject(self) -> dict:
+		"""Saves the currently opened project.
+
+		MinVer: 1.3.1"""
+		name_: str = func_name(currentframe())
+		return self._run(name_)
 
 	def GetGeoLocation(self) -> dict:
 		"""Gets the project's location details.
@@ -346,6 +398,25 @@ class TapirCommands:
 		name_: str = func_name(currentframe())
 		path = _validate_path(path, io_op="r")
 		params = {"method": method, "ifcFilePath": path, "fileType": fileType}
+		return self._run(name_, params)
+
+	def PrintView(
+		self,
+		grid: bool = False,
+		fixText: bool = False,
+		scale: int = 100,
+		printArea: Literal["currentView", "entireDrawing", "marquee"] = "currentView",
+	) -> dict:
+		"""Prints from the current view.
+
+		MinVer: 1.3.1"""
+		name_: str = func_name(currentframe())
+		params = {
+			"grid": grid,
+			"fixText": fixText,
+			"scale": scale,
+			"printArea": printArea,
+		}
 		return self._run(name_, params)
 
 	# endregion
@@ -957,8 +1028,7 @@ class TapirCommands:
 					raise ValueError(
 						"In this configuration you need to set the outline manually."
 					)
-				_poly = [coor for coor in coorsManual]
-				centroid = polygon_centroid(_poly)
+				centroid = polygon_centroid(coorsManual)
 			else:
 				if coorAuto is None:
 					raise ValueError(
@@ -1963,6 +2033,39 @@ class TapirCommands:
 		name_: str = func_name(currentframe())
 		params = {"databases": databases}
 		return self._run(name_, params)
+
+	def Set3DCutPlanes(
+		self, cutPlanes: List[tuple[float, float, float, float]]
+	) -> dict:
+		"""Sets one or many 3D cut planes.
+
+		MinVer: 1.3.1"""
+		name_: str = func_name(currentframe())
+		params = {
+			"cutPlanes": [
+				{
+					"pa": pa,
+					"pb": pb,
+					"pc": pc,
+					"pd": pd,
+				}
+				for pa, pb, pc, pd in cutPlanes
+			]
+		}
+		return self._run(name_, params)
+
+	def FitInWindow(
+		self, elements: "ElementCollection" | List[Dict[str, str]] | None = None
+	) -> dict:
+		"""Zooms to the given elements or fits everything in the window.
+
+		MinVer: 1.3.1"""
+		name_: str = func_name(currentframe())
+		if elements is not None:
+			params = {"elements": _ensure_elem_list(elements)}
+			return self._run(name_, params)
+		else:
+			return self._run(name_)
 
 	# endregion
 	# region 	Issue Management Commands
