@@ -153,3 +153,60 @@ def polygon_geometric_center(coordinates: list[Coordinate]) -> Coordinate:
 		return Coordinate(avg_x, avg_y, avg_z)
 	else:
 		return Coordinate(avg_x, avg_y)
+
+
+def detect_circle(
+	shape: Polyline,
+	tolerance: float = 0.01,
+) -> tuple[bool, Coordinate | None, float | None]:
+	"""Detect whether a Polyline approximates a circle.
+
+	DWG imports often represent circles as many-vertex polylines instead of
+	true arcs. This checks the shape by taking the area-weighted centroid
+	as the candidate center and measuring how uniform the vertex distances
+	to that center are. If the worst-case relative deviation stays within
+	``tolerance``, the shape is classified as a circle.
+
+	Args:
+		shape: The Polyline to test.
+		tolerance: Maximum allowed relative deviation of any vertex radius
+			from the mean radius, i.e. ``max(|r_i - r_mean|) / r_mean``.
+			Defaults to 0.01 (1%).
+
+	Returns:
+		Tuple ``(is_circle, center, radius)``. If no circle is detected,
+		``center`` and ``radius`` are ``None``.
+
+	Raises:
+		TypeError: If ``shape`` is not a Polyline.
+	"""
+	if not isinstance(shape, Polyline):
+		raise TypeError(
+			f"detect_circle requires a Polyline, got {type(shape).__name__}"
+		)
+
+	coords = shape.coordinates
+	# Drop an explicit closing duplicate so it doesn't skew the mean radius.
+	if len(coords) >= 2 and coords[0].is_close(coords[-1]):
+		coords = coords[:-1]
+
+	if len(coords) < 3:
+		return (False, None, None)
+
+	try:
+		center = polygon_centroid(shape)
+	except ValueError:
+		return (False, None, None)
+
+	center_2d = center.to_2d()
+	radii = [c.to_2d().distance_to(center_2d) for c in coords]
+	mean_radius = sum(radii) / len(radii)
+
+	if mean_radius <= 0.0:
+		return (False, None, None)
+
+	max_dev = max(abs(r - mean_radius) for r in radii)
+	if max_dev / mean_radius > tolerance:
+		return (False, None, None)
+
+	return (True, center, mean_radius)
